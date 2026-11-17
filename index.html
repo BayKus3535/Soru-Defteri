@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Soru Defteri">
+<meta name="theme-color" content="#14161b">
+<title>Soru Defteri</title>
+<style>
+:root{--bg:#14161b;--kart:#1f232b;--cizgi:#2c313b;--yazi:#eceef2;--soluk:#9aa1ad;--ana:#4f8cff;--yesil:#2fa36b;--kirmizi:#d9534f}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--yazi);font:16px/1.4 -apple-system,system-ui,sans-serif;padding-bottom:calc(100px + env(safe-area-inset-bottom))}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:rgba(20,22,27,.95);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--cizgi)}
+header h1{font-size:18px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#geri{background:none;border:0;color:var(--ana);font-size:34px;line-height:1;padding:0 10px 4px 0;width:auto;margin:0}
+main{padding:16px;max-width:700px;margin:0 auto}
+h2{font-size:13px;color:var(--soluk);text-transform:uppercase;letter-spacing:.06em;margin:24px 0 8px}
+.liste{list-style:none;margin:0;padding:0;background:var(--kart);border-radius:12px;overflow:hidden}
+.liste li{display:flex;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--cizgi);cursor:pointer}
+.liste li:last-child{border:0}
+.liste small{color:var(--soluk)}
+.kart{background:var(--kart);border-radius:12px;padding:16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.kart.vurgu{background:var(--ana);color:#fff}
+.kart small{opacity:.9}
+button{font:inherit;border:0;border-radius:12px;padding:14px;width:100%;cursor:pointer;margin-top:12px}
+button:disabled{opacity:.5}
+.ana{background:var(--ana);color:#fff;font-weight:600}
+.ikincil{background:var(--kart);color:var(--ana)}
+.tehlike{background:none;color:var(--kirmizi);margin-top:28px}
+#alt{position:fixed;left:0;right:0;bottom:0;padding:0 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 35%)}
+#alt:empty{display:none}
+#alt>*{max-width:668px;margin-left:auto;margin-right:auto}
+.iki{display:flex;gap:10px}.iki button{flex:1}
+.yesil{background:var(--yesil);color:#fff;font-weight:600}
+.kirmizi{background:var(--kirmizi);color:#fff;font-weight:600}
+.izgara{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:12px}
+.izgara img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:#fff;cursor:pointer}
+.izgara .bos{grid-column:1/-1}
+.buyuk{width:100%;border-radius:12px;display:block;margin-top:8px;background:#fff}
+.etiket{color:var(--soluk);font-size:14px;margin:16px 0 6px;display:block}
+.foto{display:flex;align-items:center;justify-content:center;text-align:center;min-height:180px;border:2px dashed var(--cizgi);border-radius:12px;color:var(--soluk);cursor:pointer;overflow:hidden;position:relative}
+.foto.kucuk{min-height:90px;margin-top:12px}
+.foto span{width:100%}
+.foto img{width:100%;display:block;background:#fff}
+.foto.dolu{border-style:solid}
+.gizli{position:absolute;opacity:0;width:1px;height:1px;overflow:hidden}
+textarea,input.yazi{width:100%;font:inherit;color:var(--yazi);background:var(--kart);border:1px solid var(--cizgi);border-radius:10px;padding:12px}
+.cozum{margin-top:16px;background:var(--kart);border-radius:12px;padding:4px 16px 12px}
+.cozum summary{padding:12px 0;color:var(--ana);font-weight:600;cursor:pointer}
+.metin{white-space:pre-wrap}
+.not{background:#3a3220;color:#f3d98b;padding:10px 12px;border-radius:10px;white-space:pre-wrap}
+.bos{color:var(--soluk);text-align:center;padding:24px 0}
+.kucuk-yazi{color:var(--soluk);font-size:13px;text-align:center;margin-top:16px}
+.bitti{text-align:center;padding:40px 0;font-size:18px}
+.bitti .buyuk-emoji{font-size:56px;margin:0}
+</style>
+</head>
+<body>
+<header><button id="geri" hidden aria-label="Geri">‹</button><h1 id="baslik">Soru Defteri</h1></header>
+<main id="icerik"></main>
+<div id="alt"></div>
+<script>
+// ---------- Varsayılan dersler (uygulamadan ekleyip silebilirsin) ----------
+const VARSAYILAN = ["Türkçe","Matematik","Geometri","Fizik","Kimya","Biyoloji","Tarih","Coğrafya","Felsefe","Din Kültürü","Edebiyat"]
+  .map(ad => ({ ad, konular: [] }));
+
+// Tekrar aralıkları (gün): bildikçe soru daha seyrek karşına çıkar
+const ARALIK = [1, 3, 7, 14, 30, 60];
+
+const $ = s => document.querySelector(s);
+const icerik = $('#icerik'), baslik = $('#baslik'), geriBtn = $('#geri'), alt = $('#alt');
+
+function esc(t){ return String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function yeniId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function karistir(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+// ---------- Veritabanı (fotoğraflar telefonun içinde saklanır) ----------
+let db;
+function dbAc(){
+  return new Promise((ok, hata) => {
+    const r = indexedDB.open('soruDefteri', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('sorular', { keyPath: 'id' });
+    r.onsuccess = () => { db = r.result; ok(); };
+    r.onerror = () => hata(r.error);
+  });
+}
+function istek(mod, fn){
+  return new Promise((ok, hata) => {
+    const t = db.transaction('sorular', mod);
+    const r = fn(t.objectStore('sorular'));
+    t.oncomplete = () => ok(r && r.result);
+    t.onerror = () => hata(t.error);
+    t.onabort = () => hata(t.error);
+  });
+}
+const hepsi  = () => istek('readonly',  s => s.getAll());
+const getir  = id => istek('readonly',  s => s.get(id));
+const kaydet = soru => istek('readwrite', s => { s.put(soru); });
+const sil    = id => istek('readwrite', s => { s.delete(id); });
+
+function dersler(){
+  try { return JSON.parse(localStorage.getItem('sd_dersler')) || VARSAYILAN; }
+  catch { return VARSAYILAN; }
+}
+function dersKaydet(d){ localStorage.setItem('sd_dersler', JSON.stringify(d)); }
+
+// Fotoğrafı küçültüp sıkıştırır, telefonda yer kaplamasın diye
+async function kucult(dosya){
+  const img = await new Promise((ok, hata) => {
+    const i = new Image();
+    i.onload = () => ok(i); i.onerror = hata;
+    i.src = URL.createObjectURL(dosya);
+  });
+  const max = 1600;
+  const oran = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.naturalWidth * oran);
+  c.height = Math.round(img.naturalHeight * oran);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  URL.revokeObjectURL(img.src);
+  return new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.82));
+}
+
+// ---------- Ekranlar arası geçiş ----------
+let gecmis = [], urller = [];
+function url(blob){ const u = URL.createObjectURL(blob); urller.push(u); return u; }
+function temizle(){ urller.forEach(u => URL.revokeObjectURL(u)); urller = []; }
+function git(fn, ...args){ temizle(); gecmis.push([fn, args]); fn(...args); }
+function geri(){
+  if (gecmis.length < 2) return;
+  gecmis.pop(); temizle();
+  const [fn, args] = gecmis[gecmis.length - 1]; fn(...args);
+}
+geriBtn.onclick = geri;
+function ekran(b, html, altHtml = ''){
+  baslik.textContent = b; icerik.innerHTML = html; alt.innerHTML = altHtml;
+  geriBtn.hidden = gecmis.length < 2; window.scrollTo(0, 0);
+}
+const sirasiGeldi = s => (s.sonraki || 0) <= Date.now();
+
+// ---------- Ana sayfa ----------
+async function anaSayfa(){
+  const sorular = await hepsi(), d = dersler();
+  const say = ad => sorular.filter(s => s.ders === ad).length;
+  const vade = sorular.filter(sirasiGeldi).length;
+  ekran('Soru Defteri', `
+    ${sorular.length ? `<div class="kart vurgu" onclick="tekrarBaslat()"><b>Tekrar et</b><small>Bugün ${vade} soru sırada</small></div>`
+      : `<p class="bos">Hoş geldin! Bir derse girip konu ekle, sonra soru fotoğrafı ekleyebilirsin.</p>`}
+    <h2>Dersler</h2>
+    ${d.length ? `<ul class="liste">${d.map((x, i) => `<li onclick="git(dersSayfasi,${i})"><span>${esc(x.ad)}</span><small>${say(x.ad)}</small></li>`).join('')}</ul>` : ''}
+    <button class="ikincil" onclick="dersEkle()">+ Ders ekle</button>`);
+}
+
+function dersEkle(){
+  const ad = (prompt('Ders adı:') || '').trim();
+  if (!ad) return;
+  const d = dersler();
+  if (d.some(x => x.ad === ad)) { alert('Bu ders zaten var.'); return; }
+  d.push({ ad, konular: [] }); dersKaydet(d); anaSayfa();
+}
+
+// ---------- Ders sayfası ----------
+async function dersSayfasi(i){
+  const d = dersler()[i];
+  if (!d) { geri(); return; }
+  const sorular = (await hepsi()).filter(s => s.ders === d.ad);
+  const say = k => sorular.filter(s => s.konu === k).length;
+  ekran(d.ad, `
+    ${sorular.length ? `<div class="kart vurgu" onclick="tekrarBaslat(${i})"><b>Bu dersi tekrar et</b><small>${sorular.length} soru</small></div>` : ''}
+    <h2>Konular</h2>
+    ${d.konular.length
+      ? `<ul class="liste">${d.konular.map((k, j) => `<li onclick="git(konuSayfasi,${i},${j})"><span>${esc(k)}</span><small>${say(k)}</small></li>`).join('')}</ul>`
+      : `<p class="bos">Henüz konu yok. Aşağıdan ekle.</p>`}
+    <button class="ikincil" onclick="konuEkle(${i})">+ Konu ekle</button>
+    <button class="tehlike" onclick="dersSil(${i})">Dersi sil</button>`);
+}
+
+function konuEkle(i){
+  const ad = (prompt('Konu adı:') || '').trim();
+  if (!ad) return;
+  const d = dersler();
+  if (d[i].konular.includes(ad)) { alert('Bu konu zaten var.'); return; }
+  d[i].konular.push(ad); dersKaydet(d); dersSayfasi(i);
+}
+
+async function dersSil(i){
+  const d = dersler(), ders = d[i];
+  const sorular = (await hepsi()).filter(s => s.ders === ders.ad);
+  const mesaj = sorular.length
+    ? `"${ders.ad}" dersi ve içindeki ${sorular.length} soru silinecek. Emin misin?`
+    : `"${ders.ad}" dersi silinsin mi?`;
+  if (!confirm(mesaj)) return;
+  for (const s of sorular) await sil(s.id);
+  d.splice(i, 1); dersKaydet(d);
+  gecmis = [[anaSayfa, []]]; temizle(); anaSayfa();
+}
+
+// ---------- Konu sayfası ----------
+async function konuSayfasi(i, j){
+  const d = dersler()[i], k = d && d.konular[j];
+  if (!k) { geri(); return; }
+  const sorular = (await hepsi()).filter(s => s.ders === d.ad && s.konu === k).sort((a, b) => b.tarih - a.tarih);
+  ekran(k, `
+    ${sorular.length ? `<div class="kart vurgu" onclick="tekrarBaslat(${i},${j})"><b>Bu konuyu tekrar et</b><small>${sorular.length} soru</small></div>` : ''}
+    <div class="izgara">${sorular.map(s => `<img src="${url(s.soruImg)}" onclick="git(soruDetay,'${s.id}')" alt="Soru">`).join('') || '<p class="bos">Bu konuda henüz soru yok.</p>'}</div>
+    <button class="tehlike" onclick="konuSil(${i},${j})">Konuyu sil</button>`,
+    `<button class="ana" onclick="git(soruEkle,${i},${j})">+ Soru ekle</button>`);
+}
+
+async function konuSil(i, j){
+  const d = dersler(), ders = d[i], k = ders.konular[j];
+  const sorular = (await hepsi()).filter(s => s.ders === ders.ad && s.konu === k);
+  const mesaj = sorular.length ? `"${k}" konusu ve içindeki ${sorular.length} soru silinecek. Emin misin?` : `"${k}" konusu silinsin mi?`;
+  if (!confirm(mesaj)) return;
+  for (const s of sorular) await sil(s.id);
+  ders.konular.splice(j, 1); dersKaydet(d);
+  gecmis.pop(); temizle(); dersSayfasi(i);
+}
+
+// ---------- Soru ekleme ----------
+function soruEkle(i, j){
+  const d = dersler()[i], k = d.konular[j];
+  let soru = null, cozum = null;
+  ekran('Soru ekle', `
+    <span class="etiket">${esc(d.ad)} › ${esc(k)}</span>
+    <label class="foto" id="soruAlan"><input type="file" accept="image/*" id="soruDosya" class="gizli"><span>📷<br>Sorunun fotoğrafını ekle<br><small>(kamera ya da galeri)</small></span></label>
+    <label class="etiket" for="cozumMetin">Çözüm (yazı)</label>
+    <textarea id="cozumMetin" rows="4" placeholder="İsteğe bağlı"></textarea>
+    <label class="foto kucuk" id="cozumAlan"><input type="file" accept="image/*" id="cozumDosya" class="gizli"><span>📷 Çözümün fotoğrafı (isteğe bağlı)</span></label>
+    <label class="etiket" for="not">Not</label>
+    <input class="yazi" id="not" placeholder="Örn: tuzak şık var, formülü unutma">`,
+    `<button class="ana" id="kaydetBtn">Kaydet</button>`);
+
+  const onizle = (alan, blob) => {
+    const a = $(alan);
+    a.querySelector('span').innerHTML = `<img src="${url(blob)}" alt="">`;
+    a.classList.add('dolu');
+  };
+  $('#soruDosya').onchange = async e => { const f = e.target.files[0]; if (f) { soru = await kucult(f); onizle('#soruAlan', soru); } };
+  $('#cozumDosya').onchange = async e => { const f = e.target.files[0]; if (f) { cozum = await kucult(f); onizle('#cozumAlan', cozum); } };
+
+  $('#kaydetBtn').onclick = async e => {
+    if (!soru) { alert('Önce sorunun fotoğrafını ekle.'); return; }
+    e.target.disabled = true;
+    try {
+      await kaydet({
+        id: yeniId(), ders: d.ad, konu: k, soruImg: soru, cozumImg: cozum,
+        cozumMetin: $('#cozumMetin').value.trim(), not: $('#not').value.trim(),
+        tarih: Date.now(), tekrar: 0, seviye: 0, sonraki: 0
+      });
+      geri();
+    } catch (err) {
+      alert('Kaydedilemedi: ' + (err && err.message || err));
+      e.target.disabled = false;
+    }
+  };
+}
+
+// ---------- Soru detayı ----------
+function cozumHtml(s){
+  return ((s.cozumMetin ? `<p class="metin">${esc(s.cozumMetin)}</p>` : '') +
+          (s.cozumImg ? `<img class="buyuk" src="${url(s.cozumImg)}" alt="Çözüm">` : ''))
+         || '<p class="bos">Çözüm eklenmemiş.</p>';
+}
+
+async function soruDetay(id){
+  const s = await getir(id);
+  if (!s) { geri(); return; }
+  ekran(s.konu, `
+    <span class="etiket">${esc(s.ders)} › ${esc(s.konu)}</span>
+    <img class="buyuk" src="${url(s.soruImg)}" alt="Soru">
+    ${s.not ? `<p class="not">${esc(s.not)}</p>` : ''}
+    <details class="cozum"><summary>Çözümü göster</summary>${cozumHtml(s)}</details>
+    <p class="kucuk-yazi">${s.tekrar || 0} kez tekrar edildi</p>
+    <button class="tehlike" onclick="soruSil('${s.id}')">Soruyu sil</button>`);
+}
+
+async function soruSil(id){
+  if (!confirm('Bu soru silinsin mi?')) return;
+  await sil(id); geri();
+}
+
+// ---------- Tekrar modu ----------
+let oturum = null;
+async function tekrarBaslat(i, j){
+  let liste = await hepsi();
+  const d = dersler();
+  if (i !== undefined) {
+    liste = liste.filter(s => s.ders === d[i].ad);
+    if (j !== undefined) liste = liste.filter(s => s.konu === d[i].konular[j]);
+  }
+  if (!liste.length) { alert('Tekrar edilecek soru yok.'); return; }
+  let secilen = liste.filter(sirasiGeldi);
+  if (!secilen.length) {
+    if (!confirm('Bugün sırası gelen soru yok. Yine de hepsini karışık tekrar etmek ister misin?')) return;
+    secilen = liste;
+  }
+  oturum = { ids: karistir(secilen.map(s => s.id)), n: 0, bildi: 0 };
+  git(tekrarEkrani);
+}
+
+async function tekrarEkrani(){
+  if (!oturum) { geri(); return; }
+  if (oturum.n >= oturum.ids.length) {
+    ekran('Bitti', `<div class="bitti"><p class="buyuk-emoji">🎉</p><p>${oturum.ids.length} soruyu tekrar ettin.</p><p>Bildiğin: ${oturum.bildi}</p></div>`,
+      `<button class="ana" onclick="tekrarBitir()">Tamam</button>`);
+    return;
+  }
+  const s = await getir(oturum.ids[oturum.n]);
+  if (!s) { oturum.n++; return tekrarEkrani(); }
+  ekran(`${oturum.n + 1} / ${oturum.ids.length}`, `
+    <span class="etiket">${esc(s.ders)} › ${esc(s.konu)}</span>
+    <img class="buyuk" src="${url(s.soruImg)}" alt="Soru">
+    ${s.not ? `<p class="not">${esc(s.not)}</p>` : ''}
+    <details class="cozum"><summary>Çözümü göster</summary>${cozumHtml(s)}</details>`,
+    `<div class="iki"><button class="kirmizi" onclick="cevap(false)">Bilemedim</button><button class="yesil" onclick="cevap(true)">Bildim</button></div>`);
+}
+
+async function cevap(bildi){
+  const s = await getir(oturum.ids[oturum.n]);
+  if (s) {
+    s.tekrar = (s.tekrar || 0) + 1;
+    if (bildi) {
+      s.seviye = Math.min((s.seviye || 0) + 1, ARALIK.length);
+      s.sonraki = Date.now() + ARALIK[s.seviye - 1] * 864e5;
+      oturum.bildi++;
+    } else {
+      s.seviye = 0;
+      s.sonraki = Date.now(); // bilemediğin soru hemen tekrar sıraya girer
+    }
+    await kaydet(s);
+  }
+  oturum.n++; temizle(); tekrarEkrani();
+}
+
+function tekrarBitir(){ oturum = null; geri(); }
+
+// ---------- Başlat ----------
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+dbAc().then(() => git(anaSayfa)).catch(err => {
+  icerik.innerHTML = `<p class="bos">Uygulama açılamadı: ${esc(err && err.message || err)}</p>`;
+});
+</script>
+</body>
+</html>
