@@ -48,7 +48,38 @@ h2{font-size:13px;color:var(--soluk);text-transform:uppercase;letter-spacing:.07
 .sinav-bilgi b{font-size:15px}
 .serit{display:flex;gap:10px;overflow-x:auto;margin:0 -16px;padding:0 16px 4px;scrollbar-width:none}
 .serit::-webkit-scrollbar{display:none}
-.serit img{width:100px;height:100px;object-fit:cover;border-radius:14px;flex:none;background:#fff;cursor:pointer}
+.serit .kucuk{width:100px;height:100px;flex:none;border-radius:14px;overflow:hidden;background:var(--kart);cursor:pointer}
+.serit .kucuk img,.serit .kucuk .resim-hata{width:100%;height:100%;object-fit:cover;display:block;background:#fff;min-height:0}
+
+/* Görsel yükleme durumları */
+img.yukleniyor{background:linear-gradient(100deg,var(--kart) 30%,var(--kart2) 50%,var(--kart) 70%) !important;background-size:300% 100% !important;animation:parilti 1.2s linear infinite}
+img.yukleniyor.buyuk-resim,img.yukleniyor.kart-resim{aspect-ratio:4/3;height:auto}
+@keyframes parilti{from{background-position:100% 0}to{background-position:-50% 0}}
+.resim-hata{display:flex;align-items:center;justify-content:center;text-align:center;background:var(--kart2) !important;color:var(--soluk);font-size:13px;line-height:1.3;min-height:120px;cursor:pointer;border-radius:inherit;padding:8px}
+.resim-hata.buyuk-resim,.resim-hata.kart-resim{aspect-ratio:4/3}
+
+/* Soru inceleme: kaydırılabilir kartlar */
+.sahne{overflow:hidden;touch-action:pan-y;margin:0 -16px}
+.ray{display:flex;transform:translateX(-100%)}
+.slayt{flex:0 0 100%;padding:0 16px;perspective:1400px;min-width:0}
+.kart{touch-action:manipulation;position:relative;transform-style:preserve-3d;-webkit-transform-style:preserve-3d;transition:transform .55s cubic-bezier(.3,.7,.2,1);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.kart.cevrik{transform:rotateY(180deg)}
+.yuz{border-radius:16px;overflow:hidden;-webkit-backface-visibility:hidden;backface-visibility:hidden}
+.yuz.on{position:relative;background:#fff;min-height:200px;display:flex;align-items:center;transform:rotateY(0deg)}
+.yuz.arka{position:absolute;inset:0;transform:rotateY(180deg);background:var(--kart2);display:flex;align-items:center;justify-content:center}
+.kart-resim{width:100%;display:block}
+.yuz.arka .kart-resim{width:100%;height:100%;object-fit:contain;background:#fff}
+.arka-etiket{position:absolute;top:10px;left:10px;background:var(--yesil);color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;z-index:1}
+.arka-bos{text-align:center;color:var(--soluk);padding:24px 20px;max-height:100%;overflow:auto}
+.arka-bos .simge{font-size:34px;display:block;margin-bottom:6px}
+.arka-bos b{color:var(--yazi);display:block;margin-bottom:6px}
+.arka-bos p{white-space:pre-wrap;color:var(--yazi);text-align:left;margin:12px 0 0}
+.gezgin{display:flex;align-items:center;gap:10px}
+.gezgin button{flex:1;margin:0;background:var(--kart2);color:var(--yazi);font-weight:600;transition:opacity .2s}
+.gezgin button.pasif{opacity:.35}
+.sayac{color:var(--soluk);font-size:14px;min-width:58px;text-align:center;font-variant-numeric:tabular-nums}
+.bildirim{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translate(-50%,10px);background:#2c313d;color:var(--yazi);padding:9px 16px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .2s,transform .2s;z-index:60;pointer-events:none;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.bildirim.goster{opacity:1;transform:translate(-50%,0)}
 
 /* Listeler */
 .liste{list-style:none;margin:0;padding:0;border-radius:18px;position:relative}
@@ -312,8 +343,110 @@ async function kucult(dosya){
 
 // ================= Ekranlar arası geçiş =================
 let gecmis = [], urller = [], sonrakiY = 0;
+// url(): yalnızca "Soru ekle" ekranındaki geçici önizlemeler için
 function url(blob){ const u = URL.createObjectURL(blob); urller.push(u); return u; }
 function temizle(){ urller.forEach(u => URL.revokeObjectURL(u)); urller = []; }
+
+// ================= Görsel yükleme sistemi =================
+// Kayıtlı görseller önce belleğe kopyalanır, sonra gösterilir. iPhone'da veritabanından
+// okunan dosyalar ilk denemede bazen açılamıyor; kopyalama ve yeniden deneme bunu çözer.
+// Hazırlanan görseller önbellekte tutulur, ekran değişince silinmez.
+const BOS_GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+const onbellek = new Map();   // "id:s" / "id:c" -> görsel adresi
+const bekleyen = new Map();   // ekrana yazılmış ama henüz hazırlanmamış görseller
+const sozler = new Map();     // aynı görsel iki kez hazırlanmasın
+const bekle = ms => new Promise(r => setTimeout(r, ms));
+
+function resim(s, tur, sinif = ''){
+  const blob = tur === 'c' ? s.cozumImg : s.soruImg;
+  if (!blob) return '';
+  const k = s.id + ':' + tur, u = onbellek.get(k);
+  if (u) return `<img class="${sinif}" src="${u}" data-k="${k}" alt="" decoding="async">`;
+  bekleyen.set(k, blob);
+  return `<img class="${sinif} yukleniyor" src="${BOS_GIF}" data-k="${k}" alt="">`;
+}
+
+function adresAl(k){
+  if (onbellek.has(k)) return Promise.resolve(onbellek.get(k));
+  if (!sozler.has(k)) sozler.set(k, (async () => {
+    let blob = bekleyen.get(k), veri = null;
+    for (let deneme = 0; deneme < 3; deneme++) {
+      try {
+        if (!blob || deneme > 0) {
+          const [id, tur] = k.split(':'), s = await getir(id);
+          blob = s && (tur === 'c' ? s.cozumImg : s.soruImg);
+          if (!blob) throw new Error('Görsel bulunamadı');
+        }
+        veri = await blob.arrayBuffer();
+        if (veri.byteLength) break;
+        throw new Error('Boş görsel');
+      } catch (e) {
+        if (deneme === 2) throw e;
+        await bekle(150 * (deneme + 1));
+      }
+    }
+    const u = URL.createObjectURL(new Blob([veri], { type: blob.type || 'image/jpeg' }));
+    onbellek.set(k, u); bekleyen.delete(k); sinirla();
+    return u;
+  })().finally(() => sozler.delete(k)));
+  return sozler.get(k);
+}
+
+function resimYukle(img){
+  const k = img.dataset.k;
+  adresAl(k).then(u => {
+    if (!img.isConnected) return;
+    img.onload = () => { if (img.src === u) img.classList.remove('yukleniyor'); };
+    img.onerror = () => resimHata(img);
+    img.src = u;
+  }).catch(() => resimHata(img));
+}
+
+function resimHata(img){
+  if (!img.isConnected) return;
+  const k = img.dataset.k;
+  if (!img.dataset.tekrar) {             // bir kez sessizce yeniden dene
+    img.dataset.tekrar = '1';
+    const u = onbellek.get(k); if (u) { URL.revokeObjectURL(u); onbellek.delete(k); }
+    img.src = BOS_GIF; img.classList.add('yukleniyor');
+    resimYukle(img); return;
+  }
+  const d = document.createElement('div');
+  d.className = img.className.replace('yukleniyor', '') + ' resim-hata';
+  d.innerHTML = '<span>⚠️ Görsel yüklenemedi<br><small>Tekrar denemek için dokun</small></span>';
+  d.onclick = e => {
+    e.stopPropagation();
+    const yeni = document.createElement('img');
+    yeni.className = d.className.replace('resim-hata', '') + ' yukleniyor';
+    yeni.src = BOS_GIF; yeni.alt = ''; yeni.dataset.k = k;
+    d.replaceWith(yeni); resimYukle(yeni);
+  };
+  img.replaceWith(d);
+}
+
+function resimleriYukle(){ document.querySelectorAll('img.yukleniyor[data-k]').forEach(resimYukle); }
+
+// Önbellek çok büyürse ekranda olmayan en eski görselleri bırak
+function sinirla(){
+  if (onbellek.size <= 150) return;
+  const ekrandakiler = new Set([...document.querySelectorAll('img[data-k]')].map(i => i.dataset.k));
+  for (const [k, u] of onbellek) {
+    if (onbellek.size <= 120) break;
+    if (ekrandakiler.has(k)) continue;
+    URL.revokeObjectURL(u); onbellek.delete(k);
+  }
+}
+function onbellekSil(id){
+  for (const t of ['s', 'c']) { const k = id + ':' + t, u = onbellek.get(k); if (u) URL.revokeObjectURL(u); onbellek.delete(k); bekleyen.delete(k); }
+}
+
+function bildir(mesaj){
+  let b = $('.bildirim');
+  if (!b) { b = document.createElement('div'); b.className = 'bildirim'; document.body.appendChild(b); }
+  b.textContent = mesaj; b.classList.add('goster');
+  clearTimeout(b._z); b._z = setTimeout(() => b.classList.remove('goster'), 1500);
+  try { navigator.vibrate && navigator.vibrate(8); } catch {}
+}
 function git(fn, ...args){
   temizle();
   if (gecmis.length) gecmis[gecmis.length - 1].y = scrollY;
@@ -330,6 +463,7 @@ function ekran(b, html, altHtml = '', buyuk = false){
   baslik.textContent = b; icerik.innerHTML = html; alt.innerHTML = altHtml;
   ust.classList.toggle('buyuk', buyuk);
   geriBtn.hidden = gecmis.length < 2; window.scrollTo(0, sonrakiY); sonrakiY = 0; golge();
+  resimleriYukle();
 }
 function golge(){ ust.classList.toggle('golge', window.scrollY > 4); }
 window.addEventListener('scroll', golge, { passive: true });
@@ -460,6 +594,8 @@ function surukle(ul, sirala, menu){
     if (gecmis.length < 2 || e.touches.length !== 1 || document.querySelector('.perde')) return;
     if (e.target.closest('.serit, input, textarea')) return;
     const t = e.touches[0];
+    // Soru kartlarının üstünde kaydırma soru değiştirir; sayfadan çıkmak için ekranın sol kenarından kaydır
+    if (e.target.closest('.sahne') && t.clientX > 24) return;
     s = { x: t.clientX, y: t.clientY, a: false, d: 0, v: 0, lx: t.clientX, lt: Date.now() };
   }, { passive: true });
   document.addEventListener('touchmove', e => {
@@ -504,6 +640,7 @@ async function anaSayfa(){
       </div></div>`;
   };
   const son = [...sorular].sort((a, b) => b.tarih - a.tarih).slice(0, 10);
+  listeler.son = son.map(s => s.id);
   let heroYazi, ipucu = '';
   if (!sorular.length) { heroYazi = 'Henüz soru eklemedin'; ipucu = 'TYT ya da AYT\'ye girip bir konu seç.'; }
   else if (vade) heroYazi = 'soru bugün tekrar bekliyor';
@@ -516,7 +653,7 @@ async function anaSayfa(){
       ${vade ? '<div class="hero-btn">Başla ›</div>' : ''}
     </div>
     <div class="sinavlar">${kart('TYT')}${kart('AYT')}</div>
-    ${son.length ? `<h2>Son eklenenler</h2><div class="serit">${son.map(s => `<img src="${url(s.soruImg)}" onclick="git(soruDetay,'${s.id}')" alt="Soru">`).join('')}</div>` : ''}
+    ${son.length ? `<h2>Son eklenenler</h2><div class="serit">${son.map((s, n) => `<div class="kucuk" onclick="incele('son',${n})">${resim(s, 's')}</div>`).join('')}</div>` : ''}
   `, '', true);
 }
 
@@ -644,11 +781,12 @@ async function konuSayfasi(k, i, j){
   const d = dersler()[k][i], konu = d && d.konular[j];
   if (!konu) { geri(); return; }
   const sorular = (await hepsi()).filter(s => sinavi(s) === k && s.ders === d.ad && s.konu === konu).sort((a, b) => b.tarih - a.tarih);
+  listeler.konu = sorular.map(s => s.id);
   ekran(konu, `
     ${yol(k, d.ad)}
     ${sorular.length ? `<button class="ikincil" style="margin-top:4px" onclick="tekrarBaslat('${k}',${i},${j})">Bu konuyu tekrar et · ${sorular.length} soru</button>` : ''}
     <h2>Sorular</h2>
-    <div class="izgara">${sorular.map(s => `<div class="kutu" onclick="git(soruDetay,'${s.id}')"><img src="${url(s.soruImg)}" alt="Soru">${sirasiGeldi(s) ? '<span class="etiketcik">Sırada</span>' : ''}</div>`).join('')
+    <div class="izgara">${sorular.map((s, n) => `<div class="kutu" onclick="incele('konu',${n})">${resim(s, 's')}${sirasiGeldi(s) ? '<span class="etiketcik">Sırada</span>' : ''}</div>`).join('')
       || '<p class="bos">Bu konuda henüz soru yok.<br>Aşağıdan ilk sorunu ekle.</p>'}</div>
     <button class="tehlike" onclick="konuSil('${k}',${i},${j})">Konuyu sil</button>`,
     `<button class="ana" onclick="git(soruEkle,'${k}',${i},${j})">+ Soru ekle</button>`);
@@ -693,28 +831,135 @@ function soruEkle(k, i, j){
   };
 }
 
-// ================= Soru detayı =================
+// ================= Soru kartı (ön yüz: soru, arka yüz: çözüm) =================
 function cozumHtml(s){
-  return ((s.cozumMetin ? `<p class="metin">${esc(s.cozumMetin)}</p>` : '') +
-          (s.cozumImg ? `<img class="buyuk-resim" src="${url(s.cozumImg)}" alt="Çözüm">` : ''))
+  return ((s.cozumMetin ? `<p class="metin">${esc(s.cozumMetin)}</p>` : '') + resim(s, 'c', 'buyuk-resim'))
          || '<p class="bos" style="padding:8px 0 4px">Çözüm eklenmemiş.</p>';
 }
 
-async function soruDetay(id){
-  const s = await getir(id);
-  if (!s) { geri(); return; }
+function kartHtml(s){
+  const arka = s.cozumImg
+    ? resim(s, 'c', 'kart-resim')
+    : `<div class="arka-bos"><span class="simge">📝</span><b>Bu sorunun çözüm resmi yok</b>${s.cozumMetin
+        ? `<small>Yazdığın çözüm:</small><p>${esc(s.cozumMetin)}</p>`
+        : '<small>Soruyu eklerken çözüm fotoğrafı eklenmemiş.</small>'}</div>`;
+  return `<div class="kart"><div class="yuz on">${resim(s, 's', 'kart-resim')}</div><div class="yuz arka"><span class="arka-etiket">Çözüm</span>${arka}</div></div>`;
+}
+
+// Çift dokunuş: kartı çevir. Dokunmatikte iki dokunuş arası süreye bakılır; farede çift tıklama.
+let sonCevirme = 0;
+function kartCevir(kart){ if (!kart) return; kart.classList.toggle('cevrik'); sonCevirme = Date.now(); }
+function ciftDokunmaKur(alan){
+  if (!alan) return;
+  let bas = null, sonDokunus = 0;
+  alan.addEventListener('touchstart', e => { const p = e.touches[0]; bas = e.touches.length === 1 ? { x: p.clientX, y: p.clientY, t: Date.now() } : null; }, { passive: true });
+  alan.addEventListener('touchmove', e => { if (bas) { const p = e.touches[0]; if (Math.hypot(p.clientX - bas.x, p.clientY - bas.y) > 10) bas = null; } }, { passive: true });
+  alan.addEventListener('touchend', e => {
+    if (!bas || Date.now() - bas.t > 300) { bas = null; return; }
+    bas = null;
+    const simdi = Date.now();
+    if (simdi - sonDokunus < 320) { kartCevir(e.target.closest('.kart')); sonDokunus = 0; if (e.cancelable) e.preventDefault(); }
+    else sonDokunus = simdi;
+  });
+  alan.addEventListener('dblclick', e => { if (Date.now() - sonCevirme < 600) return; kartCevir(e.target.closest('.kart')); });
+}
+
+// ================= Soru inceleme (sorular arası ileri / geri) =================
+const listeler = { son: [], konu: [] };
+function incele(liste, n){ git(soruInceleme, (listeler[liste] || []).slice(), n); }
+function soruDetay(id){ return soruInceleme([id], 0); }
+
+async function soruInceleme(ids, n){
+  if (!ids.length) { geri(); return; }
+  n = Math.max(0, Math.min(n, ids.length - 1));
+  const g = gecmis[gecmis.length - 1]; if (g && g.fn === soruInceleme) g.args = [ids, n];
+  const [onceki, s, sonraki] = await Promise.all([
+    n > 0 ? getir(ids[n - 1]) : null, getir(ids[n]), n < ids.length - 1 ? getir(ids[n + 1]) : null
+  ]);
+  if (!s) { ids.splice(n, 1); return soruInceleme(ids, n); }
+  const slayt = x => `<div class="slayt">${x ? kartHtml(x) : ''}</div>`;
+  const ilk = n === 0, son = n === ids.length - 1;
   ekran(s.konu, `
     ${yol(sinavi(s), s.ders, s.konu)}
-    <img class="buyuk-resim" src="${url(s.soruImg)}" alt="Soru">
+    <div class="sahne" id="sahne"><div class="ray" id="ray">${slayt(onceki)}${slayt(s)}${slayt(sonraki)}</div></div>
+    <p class="ipucu">Çözüm için karta iki kez dokun${ids.length > 1 ? ' · Diğer sorular için sağa sola kaydır' : ''}</p>
     ${s.not ? `<p class="not">${esc(s.not)}</p>` : ''}
     <details class="cozum"><summary>Çözümü göster</summary>${cozumHtml(s)}</details>
     <p class="kucuk-yazi">${s.tekrar || 0} kez tekrar edildi</p>
-    <button class="tehlike" onclick="soruSil('${s.id}')">Soruyu sil</button>`);
+    <button class="tehlike" onclick="incelemeSil()">Soruyu sil</button>`,
+    ids.length > 1 ? `<div class="gezgin"><button id="oncekiBtn" class="${ilk ? 'pasif' : ''}" aria-disabled="${ilk}">‹ Önceki</button><span class="sayac">${n + 1} / ${ids.length}</span><button id="sonrakiBtn" class="${son ? 'pasif' : ''}" aria-disabled="${son}">Sonraki ›</button></div>` : '');
+  incelemeKur(ids, n);
 }
 
-async function soruSil(id){
+function incelemeKur(ids, n){
+  const sahne = $('#sahne'), ray = $('#ray');
+  let gecis = false;
+  const genislik = () => sahne.clientWidth;
+  const konum = (dx, anim) => {
+    ray.style.transition = anim ? 'transform .28s cubic-bezier(.2,.8,.2,1)' : 'none';
+    ray.style.transform = `translateX(calc(-100% + ${dx}px))`;
+  };
+  const gec = yon => {
+    if (gecis) return;
+    const h = n + yon;
+    if (h < 0) { konum(0, true); bildir('Bu ilk soru, öncesi yok'); return; }
+    if (h >= ids.length) { konum(0, true); bildir('Son soruya geldin'); return; }
+    gecis = true;
+    konum(yon > 0 ? -genislik() : genislik(), true);
+    setTimeout(() => soruInceleme(ids, h), 280);
+  };
+  const ob = $('#oncekiBtn'), sb = $('#sonrakiBtn');
+  if (ob) ob.onclick = () => gec(-1);
+  if (sb) sb.onclick = () => gec(1);
+
+  // Kaydırma ve çift dokunuş
+  let t = null, sonDokunus = 0;
+  sahne.addEventListener('touchstart', e => {
+    t = null;
+    if (e.touches.length !== 1 || gecis) return;
+    const p = e.touches[0];
+    if (p.clientX <= 24) return;            // sol kenar: sayfadan çıkış hareketine bırak
+    t = { x: p.clientX, y: p.clientY, z: Date.now(), yatay: false, iptal: false, dx: 0, v: 0, lx: p.clientX, lz: Date.now() };
+  }, { passive: true });
+  sahne.addEventListener('touchmove', e => {
+    if (!t || t.iptal) return;
+    const p = e.touches[0], dx = p.clientX - t.x, dy = p.clientY - t.y;
+    if (!t.yatay) {
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { t.iptal = true; return; }
+      if (Math.abs(dx) > 10) t.yatay = true; else return;
+    }
+    if (e.cancelable) e.preventDefault();
+    const simdi = Date.now();
+    t.v = (p.clientX - t.lx) / Math.max(1, simdi - t.lz); t.lx = p.clientX; t.lz = simdi; t.dx = dx;
+    const uc = (n === 0 && dx > 0) || (n === ids.length - 1 && dx < 0);
+    konum(uc ? dx * 0.3 : dx, false);         // uçlarda lastik gibi direnç
+  }, { passive: false });
+  sahne.addEventListener('touchend', e => {
+    if (!t) return;
+    const o = t; t = null;
+    if (o.yatay) {
+      const W = genislik();
+      if (o.dx < -W * .25 || (o.dx < -40 && o.v < -.4)) gec(1);
+      else if (o.dx > W * .25 || (o.dx > 40 && o.v > .4)) gec(-1);
+      else konum(0, true);
+      return;
+    }
+    if (o.iptal || Date.now() - o.z > 300) return;
+    const simdi = Date.now();
+    if (simdi - sonDokunus < 320) { kartCevir(e.target.closest('.kart')); sonDokunus = 0; if (e.cancelable) e.preventDefault(); }
+    else sonDokunus = simdi;
+  });
+  sahne.addEventListener('touchcancel', () => { if (t && t.yatay) konum(0, true); t = null; });
+  sahne.addEventListener('dblclick', e => { if (Date.now() - sonCevirme < 600) return; kartCevir(e.target.closest('.kart')); });
+}
+
+async function incelemeSil(){
+  const g = gecmis[gecmis.length - 1], [ids, n] = g.args;
   if (!confirm('Bu soru silinsin mi?')) return;
-  await sil(id); geri();
+  await sil(ids[n]); onbellekSil(ids[n]);
+  ids.splice(n, 1);
+  if (!ids.length) { geri(); return; }
+  soruInceleme(ids, Math.min(n, ids.length - 1));
 }
 
 // ================= Tekrar modu =================
@@ -750,10 +995,12 @@ async function tekrarEkrani(){
   ekran(`Tekrar · ${oturum.n + 1} / ${toplam}`, `
     <div class="ilerleme"><div style="width:${oturum.n / toplam * 100}%"></div></div>
     ${yol(sinavi(s), s.ders, s.konu)}
-    <img class="buyuk-resim" src="${url(s.soruImg)}" alt="Soru">
+    <div id="tekKart" style="perspective:1400px">${kartHtml(s)}</div>
+    <p class="ipucu">Çözüm için karta iki kez dokun</p>
     ${s.not ? `<p class="not">${esc(s.not)}</p>` : ''}
     <details class="cozum"><summary>Çözümü göster</summary>${cozumHtml(s)}</details>`,
     `<div class="iki"><button class="kirmizi" onclick="cevap(false)">Bilemedim</button><button class="yesil" onclick="cevap(true)">Bildim</button></div>`);
+  ciftDokunmaKur($('#tekKart'));
 }
 
 async function cevap(bildi){
