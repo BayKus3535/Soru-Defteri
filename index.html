@@ -267,6 +267,23 @@ textarea:focus,input.yazi:focus{outline:none;border-color:var(--ana)}
 .grup-satir b{color:var(--soluk);font-weight:600;text-align:right}
 .grup-satir p{margin:0;color:var(--soluk);font-size:14px}
 .yesil-yazi{color:var(--yesil) !important}
+
+/* Veri Durumu ve Yedekleme */
+.grup-satir.tikla{cursor:pointer}
+.grup-satir.tikla:active{background:var(--kart2)}
+.grup-satir.ust-alt{flex-direction:column;align-items:stretch;gap:2px}
+.grup-satir small{display:block;color:var(--soluk);font-size:12.5px;margin-top:2px}
+.grup-satir code,.hash{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
+.hash{word-break:break-all;color:var(--soluk);background:var(--kart2);border:1px solid var(--cizgi);border-radius:12px;padding:10px 12px;margin:8px 0 0;font-size:12px;line-height:1.5}
+.vd-not{display:flex;gap:10px;align-items:flex-start;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.3);color:#a7f3d0;border-radius:16px;padding:12px 14px;font-size:14px}
+.vd-not svg{width:18px;height:18px;flex:none;margin-top:2px}
+.stat.kirmizi-stat b{color:var(--kirmizi)}
+.kontroller{list-style:none;margin:0;padding:0}
+.kontroller li{display:flex;gap:10px;align-items:flex-start;padding:9px 0;font-size:14px;border-top:1px solid var(--cizgi)}
+.kontroller li:first-child{border-top:0}
+.kontroller .isaret{flex:none;width:20px;text-align:center;font-weight:800}
+.isaret.ok-i{color:var(--yesil)} .isaret.hata-i{color:var(--kirmizi)} .isaret.uyari-i{color:#fb923c} .isaret.bilgi-i{color:var(--soluk)}
+.kontroller small{display:block;color:var(--soluk);font-size:12.5px;margin-top:2px;word-break:break-word}
 </style>
 </head>
 <body>
@@ -275,6 +292,10 @@ textarea:focus,input.yazi:focus{outline:none;border-color:var(--ana)}
 <div id="alt"></div>
 <nav id="sekmeler" aria-label="Bölümler"></nav>
 <script>
+// Açılış anlık kopyası: uygulama hiçbir şey yazmadan ÖNCE localStorage'ın birebir hâli (yalnızca okuma).
+// Veri Durumu ekranı, açılıştaki onarım adımının bir şey değiştirip değiştirmediğini bununla gösterir.
+const ACILIS_LS = (() => { const o = {}; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); o[k] = localStorage.getItem(k); } } catch {} return o; })();
+
 // ================= Simgeler (vektörel, 24x24) =================
 const IKON = {
   // matematik
@@ -1099,6 +1120,8 @@ async function ayarlar(){
   try { kalici = await navigator.storage.persisted(); } catch {}
   const cozumlu = sorular.filter(s => s.cozumImg || s.cozumMetin).length;
   ekran('Ayarlar', `
+    <h2>Veri güvenliği</h2>
+    <div class="grup"><div class="grup-satir tikla" onclick="git(veriDurumu)"><span>Veri Durumu ve Yedekleme</span><span class="ok">${ui('sag')}</span></div></div>
     <h2>Veriler</h2>
     <div class="grup">
       <div class="grup-satir"><span>Kayıtlı soru</span><b>${sorular.length}</b></div>
@@ -1116,7 +1139,7 @@ async function ayarlar(){
       <div class="grup-satir"><p><b style="color:var(--yazi)">Tekrar aralığı:</b> Bildiğin soru 1, 3, 7, 14, 30 ve 60 gün sonra tekrar gelir.</p></div>
     </div>
     <h2>Hakkında</h2>
-    <div class="grup"><div class="grup-satir"><span>Soru Defteri</span><b>Sürüm 1.5</b></div></div>`, '', true);
+    <div class="grup"><div class="grup-satir"><span>Soru Defteri</span><b>Sürüm ${UYGULAMA_SURUMU}</b></div></div>`, '', true);
 }
 
 // ================= Soru ekleme =================
@@ -1349,6 +1372,418 @@ async function cevap(bildi){
 }
 
 function tekrarBitir(){ oturum = null; geri(); }
+
+// ================= Veri Durumu ve Yedekleme (SALT OKUNUR) =================
+// Bu bölümdeki hiçbir fonksiyon veri yazmaz:
+//  - IndexedDB: yalnızca 'readonly' işlem (count, getAll, get); sürüm yükseltme yok, yeni bağlantı açılmaz
+//  - localStorage: yalnızca okuma (key, getItem)
+// Geri yükleme bu sürümde YOKTUR.
+var UYGULAMA_SURUMU = '1.6';
+const JSON_ANAHTARLAR = ['sd_dersler_v2', 'sd_tamam', 'sd_gunluk', 'sd_dersler'];
+const BILINEN_ANAHTAR = {
+  sd_dersler_v2: 'Ders ve konu listesi', sd_tamam: 'Tamamlanan konular', sd_gunluk: 'Günlük tekrar sayıları',
+  sd_son_sinav: 'Dersler sekmesinde son seçilen sınav', sd_dersler: 'İlk sürümden kalan eski liste (artık okunmuyor)'
+};
+
+function lsOku(){ const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); o[k] = localStorage.getItem(k); } return o; }
+function salt(fn){
+  return new Promise((ok, hata) => {
+    const t = db.transaction('sorular', 'readonly');
+    const r = fn(t.objectStore('sorular'));
+    t.oncomplete = () => ok(r.result); t.onerror = () => hata(t.error); t.onabort = () => hata(t.error);
+  });
+}
+const bayt = s => new TextEncoder().encode(s).length;
+const boyutYaz = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(2) + ' MB';
+async function sha256(veri){ const h = await crypto.subtle.digest('SHA-256', veri); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join(''); }
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8){ let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+
+// Bir kaydın görsel alanını oku (iPhone'da ilk denemede açılamazsa kaydı salt okunur yeniden alıp 2 kez daha dener)
+async function blobOku(id, alan, blob){
+  for (let d = 0; d < 3; d++) {
+    try {
+      if (!blob || d > 0) { const s = await salt(st => st.get(id)); blob = s && s[alan]; if (!(blob instanceof Blob)) throw new Error('kayıtta görsel yok'); }
+      const buf = await blob.arrayBuffer();
+      if (!buf.byteLength) throw new Error('boş dosya');
+      return { buf, tip: blob.type || '' };
+    } catch (e) { if (d === 2) throw e; await bekle(150 * (d + 1)); }
+  }
+}
+async function gorselCozulur(buf, tip){
+  const blob = new Blob([buf], { type: tip || 'image/jpeg' });
+  try { if (window.createImageBitmap) { const b = await createImageBitmap(blob); const r = { w: b.width, h: b.height }; if (b.close) b.close(); return r; } } catch {}
+  return await new Promise(ok => {
+    const u = URL.createObjectURL(blob), i = new Image();
+    i.onload = () => { ok(i.naturalWidth ? { w: i.naturalWidth, h: i.naturalHeight } : null); URL.revokeObjectURL(u); };
+    i.onerror = () => { ok(null); URL.revokeObjectURL(u); };
+    i.src = u;
+  });
+}
+const gorselAlanlari = s => Object.keys(s).filter(a => s[a] instanceof Blob);
+const yerYaz = s => `${s.sinav || 'TYT'} › ${s.ders} › ${s.konu}`;
+
+// ---- 1-5: Envanter ----
+async function envanterCikar(ilerle){
+  const ls = lsOku();
+  const kayitSayisi = await salt(st => st.count());
+  const kayitlar = await salt(st => st.getAll());
+  const sorunlar = [];
+  const ekle = (tur, m, d) => sorunlar.push({ tur, m, d });
+
+  // localStorage anahtarları
+  const anahtarlar = Object.keys(ls).sort().map(k => {
+    const v = ls[k]; let gecerli = true;
+    if (JSON_ANAHTARLAR.includes(k)) { try { JSON.parse(v); } catch { gecerli = false; } }
+    return { k, bayt: bayt(v), gecerli, aciklama: BILINEN_ANAHTAR[k] || (k.startsWith('sd_') ? 'Tanınmayan sd_ anahtarı' : 'Bu uygulamaya ait değil (aynı adresteki başka bir sayfaya ait olabilir)') };
+  });
+  anahtarlar.filter(a => !a.gecerli).forEach(a => ekle('hata', `${a.k} okunamıyor (bozuk JSON)`));
+  const tumAnahtar = [...new Set([...Object.keys(ACILIS_LS), ...Object.keys(ls)])];
+  const oturumdaDegisen = tumAnahtar.filter(k => ACILIS_LS[k] !== ls[k]);
+
+  // Ders listesi
+  let dl = null; try { dl = JSON.parse(ls.sd_dersler_v2); } catch {}
+  const dlGecerli = dl && Array.isArray(dl.TYT) && Array.isArray(dl.AYT);
+  if (!dlGecerli) ekle('hata', 'Ders listesi (sd_dersler_v2) okunamadı ya da beklenen yapıda değil');
+  const dersBul = (k, ad) => dlGecerli && Array.isArray(dl[k]) ? dl[k].find(x => x && x.ad === ad) : null;
+  if (dlGecerli) for (const k of ['TYT', 'AYT']) {
+    const adlar = dl[k].map(x => x && x.ad);
+    adlar.filter((a, i) => adlar.indexOf(a) !== i).forEach(a => ekle('uyari', `${k}: "${a}" dersi listede birden fazla kez geçiyor`));
+    dl[k].forEach(x => { const ks = (x && x.konular) || []; ks.filter((a, i) => ks.indexOf(a) !== i).forEach(a => ekle('uyari', `${k} › ${x.ad}: "${a}" konusu birden fazla kez geçiyor`)); });
+  }
+
+  // Sorular ve bağlantıları
+  let sinavsiz = 0; const kimlikler = new Set();
+  for (const s of kayitlar) {
+    if (typeof s.id !== 'string' || !s.id) ekle('hata', 'Kimliği geçersiz bir kayıt var');
+    else if (kimlikler.has(s.id)) ekle('hata', `Aynı kimlik iki kez: ${s.id}`); else kimlikler.add(s.id);
+    if (!s.sinav) sinavsiz++;
+    else if (!['TYT', 'AYT'].includes(s.sinav)) ekle('uyari', `Tanınmayan sınav değeri "${s.sinav}"`, s.id);
+    if (!s.ders || !s.konu) { ekle('hata', 'Dersi ya da konusu boş soru', s.id); continue; }
+    const d = dersBul(s.sinav || 'TYT', s.ders);
+    if (dlGecerli && !d) ekle('uyari', `Soru listede olmayan bir derse bağlı: ${yerYaz(s)}`, s.id);
+    else if (d && !(d.konular || []).includes(s.konu)) ekle('uyari', `Soru listede olmayan bir konuya bağlı: ${yerYaz(s)}`, s.id);
+    if (!(s.soruImg instanceof Blob)) ekle('hata', `Soru görseli kayıtta yok: ${yerYaz(s)}`, s.id);
+    for (const a of ['tarih', 'tekrar', 'seviye', 'sonraki']) if (s[a] !== undefined && s[a] !== null && typeof s[a] !== 'number') ekle('uyari', `"${a}" alanı sayı değil`, s.id);
+  }
+  if (sinavsiz) ekle('bilgi', `${sinavsiz} soru ilk sürümden kalma ("sınav" alanı yok); uygulama bunları TYT sayıyor`);
+
+  // Tamamlanan konular
+  if (ls.sd_tamam !== undefined) {
+    let tm = null; try { tm = JSON.parse(ls.sd_tamam); } catch {}
+    if (tm && dlGecerli) for (const key of Object.keys(tm)) {
+      const [k, ...r] = key.split('|'), ad = r.join('|'), d = dersBul(k, ad);
+      for (const konu of (Array.isArray(tm[key]) ? tm[key] : [])) if (!d || !(d.konular || []).includes(konu)) ekle('bilgi', `Tamamlandı kaydı artık listede olmayan konuyu gösteriyor: ${k} › ${ad} › ${konu}`);
+    }
+  }
+  // İlk sürümden kalan liste
+  if (ls.sd_dersler !== undefined) {
+    let eski = null; try { eski = JSON.parse(ls.sd_dersler); } catch {}
+    if (Array.isArray(eski) && dlGecerli) {
+      for (const x of eski) {
+        if (!x || !x.ad) continue;
+        const d = dersBul('TYT', x.ad) || dersBul('AYT', x.ad);
+        if (!d) ekle('bilgi', `Eski listede olup yeni listede olmayan ders: "${x.ad}"${(x.konular || []).length ? ` (${x.konular.length} konu)` : ''}`);
+        else (x.konular || []).filter(kn => !(d.konular || []).includes(kn)).forEach(kn => ekle('bilgi', `Eski listede olup yeni listede olmayan konu: ${x.ad} › ${kn}`));
+      }
+    }
+  }
+
+  // Görseller: her biri okunur ve çözülmeye çalışılır
+  const gorseller = [];
+  const toplam = kayitlar.reduce((a, s) => a + gorselAlanlari(s).length, 0); let n = 0;
+  for (const s of kayitlar) for (const alan of gorselAlanlari(s)) {
+    const g = { id: s.id, alan, yer: yerYaz(s), ok: false };
+    try {
+      const { buf, tip } = await blobOku(s.id, alan, s[alan]);
+      g.boyut = buf.byteLength; g.tip = tip;
+      const olcu = await gorselCozulur(buf, tip);
+      if (olcu) { g.ok = true; g.w = olcu.w; g.h = olcu.h; } else g.hata = 'Dosya var ama görsel olarak açılamıyor';
+    } catch (e) { g.hata = 'Dosya okunamadı: ' + (e && e.message || e); }
+    gorseller.push(g);
+    if (ilerle) ilerle(++n, toplam);
+  }
+  return {
+    zaman: new Date().toISOString(), db: { ad: db.name, surum: db.version, tablolar: [...db.objectStoreNames] },
+    kayitSayisi, kayitSayisiListe: kayitlar.length, anahtarlar, oturumdaDegisen, sorunlar, gorseller,
+    soruGorsel: kayitlar.filter(s => s.soruImg instanceof Blob).length,
+    cozumGorsel: kayitlar.filter(s => s.cozumImg instanceof Blob).length
+  };
+}
+
+// ---- 6: .sdyedek dosyası (sıkıştırmasız ZIP) ----
+function zipOlustur(dosyalar){
+  const enc = new TextEncoder(), parcalar = [], merkez = []; let ofset = 0;
+  const t = new Date();
+  const dz = ((t.getHours() << 11) | (t.getMinutes() << 5) | (t.getSeconds() >> 1)) & 0xFFFF;
+  const dt = (((t.getFullYear() - 1980) << 9) | ((t.getMonth() + 1) << 5) | t.getDate()) & 0xFFFF;
+  for (const f of dosyalar) {
+    const ad = enc.encode(f.ad), crc = crc32(f.veri), boy = f.veri.length;
+    const y = new DataView(new ArrayBuffer(30));
+    y.setUint32(0, 0x04034b50, true); y.setUint16(4, 20, true); y.setUint16(6, 0x0800, true); y.setUint16(8, 0, true);
+    y.setUint16(10, dz, true); y.setUint16(12, dt, true); y.setUint32(14, crc, true); y.setUint32(18, boy, true);
+    y.setUint32(22, boy, true); y.setUint16(26, ad.length, true); y.setUint16(28, 0, true);
+    parcalar.push(new Uint8Array(y.buffer), ad, f.veri);
+    const m = new DataView(new ArrayBuffer(46));
+    m.setUint32(0, 0x02014b50, true); m.setUint16(4, 20, true); m.setUint16(6, 20, true); m.setUint16(8, 0x0800, true);
+    m.setUint16(10, 0, true); m.setUint16(12, dz, true); m.setUint16(14, dt, true); m.setUint32(16, crc, true);
+    m.setUint32(20, boy, true); m.setUint32(24, boy, true); m.setUint16(28, ad.length, true);
+    m.setUint16(30, 0, true); m.setUint16(32, 0, true); m.setUint16(34, 0, true); m.setUint16(36, 0, true);
+    m.setUint32(38, 0, true); m.setUint32(42, ofset, true);
+    merkez.push(new Uint8Array(m.buffer), ad);
+    ofset += 30 + ad.length + boy;
+  }
+  const mBoy = merkez.reduce((a, p) => a + p.length, 0);
+  const e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(4, 0, true); e.setUint16(6, 0, true);
+  e.setUint16(8, dosyalar.length, true); e.setUint16(10, dosyalar.length, true);
+  e.setUint32(12, mBoy, true); e.setUint32(16, ofset, true); e.setUint16(20, 0, true);
+  return new Blob([...parcalar, ...merkez, new Uint8Array(e.buffer)], { type: 'application/zip' });
+}
+// Doğrulama için bağımsız ZIP okuyucu: dosyayı baştan okur
+function zipOku(buf){
+  const v = new DataView(buf), u8 = new Uint8Array(buf), dec = new TextDecoder();
+  const e = buf.byteLength - 22;
+  if (e < 0 || v.getUint32(e, true) !== 0x06054b50) throw new Error('ZIP sonu bulunamadı');
+  const adet = v.getUint16(e + 10, true); let p = v.getUint32(e + 16, true); const sonuc = [];
+  for (let i = 0; i < adet; i++) {
+    if (v.getUint32(p, true) !== 0x02014b50) throw new Error('Merkez dizin bozuk');
+    const crc = v.getUint32(p + 16, true), boy = v.getUint32(p + 20, true), adU = v.getUint16(p + 28, true);
+    const exU = v.getUint16(p + 30, true), yoU = v.getUint16(p + 32, true), lo = v.getUint32(p + 42, true);
+    const ad = dec.decode(u8.subarray(p + 46, p + 46 + adU));
+    if (v.getUint32(lo, true) !== 0x04034b50) throw new Error('Yerel başlık bozuk: ' + ad);
+    const bas = lo + 30 + v.getUint16(lo + 26, true) + v.getUint16(lo + 28, true);
+    sonuc.push({ ad, crc, veri: u8.subarray(bas, bas + boy) });
+    p += 46 + adU + exU + yoU;
+  }
+  return sonuc;
+}
+// Kaydı JSON'a çevir: görsel alanları dosya referansı olur, diğer bütün alanlar (bilinmeyenler dahil) aynen kalır
+function kayitJson(s, referanslar){
+  const o = {};
+  for (const [a, v] of Object.entries(s)) {
+    if (v instanceof Blob) o[a] = { __dosya: referanslar[a] };
+    else if (v instanceof Date) o[a] = { __tarih: v.toISOString() };
+    else o[a] = v;
+  }
+  return o;
+}
+const guvenli = s => String(s).replace(/[^A-Za-z0-9_-]/g, '_');
+const iki = n => String(n).padStart(2, '0');
+
+async function yedekOlustur(ilerle){
+  const ls = lsOku();
+  const sayi = await salt(st => st.count());
+  const kayitlar = await salt(st => st.getAll());
+  const enc = new TextEncoder(), dosyalar = [], gorselListe = [], kullanilan = new Set();
+  const toplam = kayitlar.reduce((a, s) => a + gorselAlanlari(s).length, 0); let n = 0;
+  const sorular = [];
+  for (const s of kayitlar) {
+    const ref = {};
+    for (const alan of gorselAlanlari(s)) {
+      const { buf, tip } = await blobOku(s.id, alan, s[alan]);
+      const u = new Uint8Array(buf);
+      const uz = /png/.test(tip) ? 'png' : /jpe?g/.test(tip) || !tip ? 'jpg' : 'bin';
+      let yol = `gorseller/${guvenli(s.id)}_${alan === 'soruImg' ? 'soru' : alan === 'cozumImg' ? 'cozum' : guvenli(alan)}.${uz}`;
+      for (let k = 2; kullanilan.has(yol); k++) yol = yol.replace(/(\.\w+)$/, `_${k}$1`);
+      kullanilan.add(yol);
+      const h = await sha256(u);
+      ref[alan] = yol;
+      gorselListe.push({ dosya: yol, soruId: s.id, alan, tip, boyut: u.length, sha256: h });
+      dosyalar.push({ ad: yol, veri: u });
+      if (ilerle) ilerle(++n, toplam);
+    }
+    sorular.push(kayitJson(s, ref));
+  }
+  const acilisFarkli = Object.keys({ ...ACILIS_LS, ...ls }).some(k => ACILIS_LS[k] !== ls[k]);
+  const manifest = {
+    bicim: 'sdyedek', bicimSurumu: 1, uygulama: 'Soru Defteri', uygulamaSurumu: UYGULAMA_SURUMU,
+    olusturma: new Date().toISOString(),
+    kaynak: { adres: location.origin + location.pathname, tarayici: navigator.userAgent },
+    indexedDB: { ad: db.name, surum: db.version, tablolar: [{ ad: 'sorular', anahtarAlani: 'id', kayitSayisi: sayi }] },
+    localStorage: ls,                                   // değerler birebir metin olarak
+    localStorageAcilis: acilisFarkli ? ACILIS_LS : null, // açılıştaki onarımdan önceki hâl (farklıysa)
+    sorular, gorseller: gorselListe,
+    ozet: { soru: sayi, soruGorseli: kayitlar.filter(s => s.soruImg instanceof Blob).length,
+            cozumGorseli: kayitlar.filter(s => s.cozumImg instanceof Blob).length,
+            gorselDosyasi: gorselListe.length, localStorageAnahtari: Object.keys(ls).length }
+  };
+  const beniOku = `Soru Defteri güvenlik kopyası\n\nOluşturma: ${manifest.olusturma}\nUygulama sürümü: ${UYGULAMA_SURUMU}\n\n` +
+    `manifest.json : bütün kayıtlar, ders/konu listesi, ayarlar ve görsellerin SHA-256 parmak izleri\n` +
+    `gorseller/     : soru ve çözüm görselleri (JPEG)\n\nSoru: ${manifest.ozet.soru} · Soru görseli: ${manifest.ozet.soruGorseli} · Çözüm görseli: ${manifest.ozet.cozumGorseli}\n` +
+    `Bu dosya bir ZIP arşividir; uzantısı .zip yapılırsa bilgisayarda açılabilir.\n`;
+  const manifestBayt = enc.encode(JSON.stringify(manifest, null, 1));
+  dosyalar.unshift({ ad: 'manifest.json', veri: manifestBayt }, { ad: 'BENIOKU.txt', veri: enc.encode(beniOku) });
+  const zip = zipOlustur(dosyalar);
+  const t = new Date();
+  const ad = `SoruDefteri-yedek-${t.getFullYear()}-${iki(t.getMonth() + 1)}-${iki(t.getDate())}-${iki(t.getHours())}${iki(t.getMinutes())}.sdyedek`;
+  const dosya = new File([zip], ad, { type: 'application/zip' });
+  return { dosya, manifest, manifestSha: await sha256(manifestBayt), dosyaSayisi: dosyalar.length };
+}
+
+// ---- 7: Doğrulama (dosya baştan okunur, veritabanı ve localStorage ile karşılaştırılır) ----
+async function yedekDogrula(y){
+  const k = [];
+  const kontrol = (ad, ok, detay = '') => k.push({ ad, ok, detay });
+  const buf = await y.dosya.arrayBuffer();
+  const dosyaSha = await sha256(buf);
+  let girdiler = [];
+  try { girdiler = zipOku(buf); kontrol('Arşiv yapısı okunabiliyor', girdiler.length === y.dosyaSayisi, `${girdiler.length} dosya`); }
+  catch (e) { kontrol('Arşiv yapısı okunabiliyor', false, e.message); return { k, dosyaSha, boyut: buf.byteLength }; }
+  const crcHata = girdiler.filter(g => crc32(g.veri) !== g.crc);
+  kontrol('Her dosyanın CRC32 sağlaması tutuyor', !crcHata.length, crcHata.map(g => g.ad).join(', '));
+  const harita = new Map(girdiler.map(g => [g.ad, g]));
+  let m = null;
+  try { m = JSON.parse(new TextDecoder().decode(harita.get('manifest.json').veri)); } catch {}
+  kontrol('manifest.json okunabiliyor', !!m);
+  if (!m) return { k, dosyaSha, boyut: buf.byteLength };
+  kontrol('manifest.json SHA-256 tutuyor', (await sha256(harita.get('manifest.json').veri)) === y.manifestSha);
+
+  // Görseller: arşivdeki her dosyanın SHA-256'sı manifest ve veritabanındaki asılla aynı mı
+  let gOk = 0; const gHata = [];
+  const kayitlar = await salt(st => st.getAll());
+  const kMap = new Map(kayitlar.map(s => [s.id, s]));
+  for (const g of m.gorseller) {
+    const f = harita.get(g.dosya);
+    if (!f) { gHata.push(g.dosya + ' arşivde yok'); continue; }
+    const hArsiv = await sha256(f.veri);
+    let hAsil = null;
+    try { const { buf: b } = await blobOku(g.soruId, g.alan, kMap.get(g.soruId) && kMap.get(g.soruId)[g.alan]); hAsil = await sha256(b); } catch {}
+    if (hArsiv === g.sha256 && hAsil === g.sha256) gOk++; else gHata.push(g.dosya);
+  }
+  kontrol(`Görseller SHA-256 ile doğrulandı (${gOk} / ${m.gorseller.length})`, !gHata.length, gHata.join(', '));
+
+  // Kayıtlar: sayı ve içerik
+  const sayi = await salt(st => st.count());
+  kontrol(`Soru sayısı tutuyor (${m.sorular.length} / ${sayi})`, m.sorular.length === sayi && m.indexedDB.tablolar[0].kayitSayisi === sayi);
+  const refMap = {}; m.gorseller.forEach(g => { (refMap[g.soruId] = refMap[g.soruId] || {})[g.alan] = g.dosya; });
+  const yedekMap = new Map(m.sorular.map(s => [s.id, JSON.stringify(s)]));
+  const kayitFark = kayitlar.filter(s => yedekMap.get(s.id) !== JSON.stringify(kayitJson(s, refMap[s.id] || {})));
+  kontrol('Her sorunun bütün alanları yedekte aynen var', !kayitFark.length, kayitFark.map(s => s.id).join(', '));
+  const eksikGorsel = kayitlar.reduce((a, s) => a + gorselAlanlari(s).filter(al => !(refMap[s.id] || {})[al]).length, 0);
+  kontrol('Hiçbir görsel dışarıda kalmadı', !eksikGorsel, eksikGorsel ? eksikGorsel + ' görsel eksik' : '');
+
+  // localStorage: bütün anahtarlar birebir
+  const ls = lsOku(), anahtar = [...new Set([...Object.keys(ls), ...Object.keys(m.localStorage)])];
+  const lsFark = anahtar.filter(a => ls[a] !== m.localStorage[a]);
+  kontrol(`localStorage birebir yedeklendi (${Object.keys(m.localStorage).length} anahtar)`, !lsFark.length, lsFark.join(', '));
+  return { k, dosyaSha, boyut: buf.byteLength };
+}
+
+// ---- 8: Dosyalar'a kaydet ----
+let sonYedek = null;
+async function yedekPaylas(){
+  if (!sonYedek) return;
+  const f = sonYedek.dosya;
+  const adaylar = [f, new File([f], f.name + '.zip', { type: 'application/zip' })];
+  for (const x of adaylar) {
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [x] })) { await navigator.share({ files: [x], title: x.name }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  yedekIndir();
+}
+function yedekIndir(){
+  if (!sonYedek) return;
+  const u = URL.createObjectURL(sonYedek.dosya), a = document.createElement('a');
+  a.href = u; a.download = sonYedek.dosya.name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(u), 60000);
+}
+
+// ---- Ekran ----
+const isaret = t => ({ ok: '✓', hata: '✕', uyari: '!', bilgi: 'i' })[t];
+function envanterHtml(e){
+  const acilmayan = e.gorseller.filter(g => !g.ok);
+  const sorunlar = e.sorunlar;
+  return `
+    <div class="vd-not">${ui('tik')}<span>Bu ekran yalnızca okur. Veritabanına ve kayıtlara hiçbir şey yazmaz; geri yükleme bu sürümde yoktur.</span></div>
+    <div class="stat-izgara" style="margin-top:12px">
+      <div class="stat">${ui('soru')}<b>${e.kayitSayisi}</b><span>Toplam soru</span></div>
+      <div class="stat" style="--r:var(--ana-acik)">${ui('kamera')}<b>${e.soruGorsel}</b><span>Soru görseli</span></div>
+      <div class="stat" style="--r:var(--yesil)">${ui('kamera')}<b>${e.cozumGorsel}</b><span>Çözüm görseli</span></div>
+      <div class="stat ${acilmayan.length ? 'kirmizi-stat' : ''}" style="--r:${acilmayan.length ? 'var(--kirmizi)' : 'var(--yesil)'}">${ui(acilmayan.length ? 'soru' : 'tik')}<b>${acilmayan.length}</b><span>Açılamayan görsel</span></div>
+    </div>
+
+    <h2>IndexedDB</h2>
+    <div class="grup">
+      <div class="grup-satir"><span>Veritabanı</span><b><code>${esc(e.db.ad)}</code> · sürüm ${e.db.surum}</b></div>
+      ${e.db.tablolar.map(t => `<div class="grup-satir"><span>Tablo <code>${esc(t)}</code></span><b>${t === 'sorular' ? e.kayitSayisi + ' kayıt' : '–'}</b></div>`).join('')}
+    </div>
+
+    <h2>LocalStorage · ${e.anahtarlar.length} anahtar</h2>
+    <div class="grup">${e.anahtarlar.length ? e.anahtarlar.map(a => `
+      <div class="grup-satir"><span><code>${esc(a.k)}</code><small>${esc(a.aciklama)}${a.gecerli ? '' : ' · <span style="color:var(--kirmizi)">bozuk</span>'}${e.oturumdaDegisen.includes(a.k) ? ' · bu açılışta değişti' : ''}</small></span><b>${boyutYaz(a.bayt)}</b></div>`).join('')
+      : '<div class="grup-satir"><p>Hiç anahtar yok.</p></div>'}</div>
+
+    <h2>Açılıştaki onarım adımı</h2>
+    <div class="kart-kutu"><ul class="kontroller">${e.oturumdaDegisen.length
+      ? `<li><span class="isaret bilgi-i">i</span><div>Bu açılıştan beri değişen anahtarlar: ${e.oturumdaDegisen.map(k => `<code>${esc(k)}</code>`).join(', ')}<small>${e.oturumdaDegisen.every(k => k === 'sd_son_sinav') ? 'Yalnızca Dersler sekmesinde seçilen sınav değişti; bu normal kullanımdır.' : 'Yedek dosyası, açılıştan önceki hâli de ayrıca içerir.'}</small></div></li>`
+      : '<li><span class="isaret ok-i">✓</span><div>Bu açılışta hiçbir kayıt değiştirilmedi.</div></li>'}</ul></div>
+
+    <h2>Ders ve konu bağlantıları</h2>
+    <div class="kart-kutu"><ul class="kontroller">${sorunlar.length
+      ? sorunlar.map(s => `<li><span class="isaret ${s.tur}-i">${isaret(s.tur)}</span><div>${esc(s.m)}${s.d ? `<small>Soru kimliği: ${esc(s.d)}</small>` : ''}</div></li>`).join('')
+      : '<li><span class="isaret ok-i">✓</span><div>Tutarsızlık bulunamadı.</div></li>'}</ul></div>
+
+    <h2>Görsel kontrolü</h2>
+    <div class="kart-kutu"><ul class="kontroller">
+      <li><span class="isaret ${acilmayan.length ? 'hata-i' : 'ok-i'}">${acilmayan.length ? '✕' : '✓'}</span><div>${e.gorseller.length - acilmayan.length} / ${e.gorseller.length} görsel açılabiliyor<small>Toplam boyut: ${boyutYaz(e.gorseller.reduce((a, g) => a + (g.boyut || 0), 0))}</small></div></li>
+      ${acilmayan.map(g => `<li><span class="isaret hata-i">✕</span><div>${g.alan === 'cozumImg' ? 'Çözüm' : 'Soru'} görseli · ${esc(g.yer)}<small>${esc(g.hata)} · ${esc(g.id)}</small></div></li>`).join('')}
+    </ul></div>
+    <div id="vdYedek"></div>`;
+}
+
+async function veriDurumu(){
+  sonYedek = null;
+  ekran('Veri Durumu', `
+    <div class="kart-kutu" id="vdDurum"><b>Veriler inceleniyor…</b>
+      <div class="ilerleme" style="margin-top:12px"><div id="vdBar" style="width:5%"></div></div>
+      <span class="alt-yazi" id="vdYazi">Hiçbir veri değiştirilmez.</span></div>`,
+    `<button class="ana" id="vdBtn" disabled>Güvenlik kopyası oluştur</button>`);
+  let e;
+  try {
+    e = await envanterCikar((n, t) => { const b = $('#vdBar'); if (b) { b.style.width = (5 + n / t * 95) + '%'; $('#vdYazi').textContent = `Görseller kontrol ediliyor: ${n} / ${t}`; } });
+  } catch (err) {
+    const d = $('#vdDurum'); if (d) d.innerHTML = `<b style="color:var(--kirmizi)">İnceleme tamamlanamadı</b><p class="alt-yazi" style="white-space:normal">${esc(err && err.message || err)}</p>`;
+    return;
+  }
+  if (!$('#vdDurum')) return;            // kullanıcı ekrandan ayrıldıysa
+  icerik.innerHTML = envanterHtml(e);
+  const btn = $('#vdBtn'); btn.disabled = false; btn.onclick = yedekBaslat;
+}
+
+async function yedekBaslat(){
+  const btn = $('#vdBtn'), alan = $('#vdYedek');
+  btn.disabled = true; btn.textContent = 'Kopya hazırlanıyor…';
+  alan.innerHTML = `<h2>Güvenlik kopyası</h2><div class="kart-kutu"><b id="ykYazi">Görseller okunuyor…</b><div class="ilerleme" style="margin-top:12px"><div id="ykBar" style="width:3%"></div></div></div>`;
+  alan.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  try {
+    const y = await yedekOlustur((n, t) => { const b = $('#ykBar'); if (b) { b.style.width = (3 + n / t * 60) + '%'; $('#ykYazi').textContent = `Görseller okunuyor: ${n} / ${t}`; } });
+    if ($('#ykYazi')) { $('#ykYazi').textContent = 'Kopya doğrulanıyor (SHA-256)…'; $('#ykBar').style.width = '70%'; }
+    const d = await yedekDogrula(y);
+    if (!$('#vdYedek')) return;
+    const tamam = d.k.every(x => x.ok);
+    sonYedek = { ...y, ...d, tamam };
+    alan.innerHTML = `<h2>Güvenlik kopyası</h2>
+      <div class="kart-kutu">
+        <div style="display:flex;gap:12px;align-items:center"><span class="rozet kucuk" style="--r:${tamam ? 'var(--yesil)' : 'var(--kirmizi)'}">${ui(tamam ? 'tik' : 'soru')}</span>
+          <div class="bilgi"><div class="ad" style="font-size:16px;white-space:normal">${tamam ? 'Kopya doğrulandı' : 'Doğrulama başarısız'}</div><div class="alt-yazi" style="white-space:normal">${esc(y.dosya.name)} · ${boyutYaz(d.boyut)}</div></div></div>
+        <ul class="kontroller" style="margin-top:12px">${d.k.map(x => `<li><span class="isaret ${x.ok ? 'ok-i' : 'hata-i'}">${x.ok ? '✓' : '✕'}</span><div>${esc(x.ad)}${x.detay && !x.ok ? `<small>${esc(x.detay)}</small>` : ''}</div></li>`).join('')}</ul>
+        <div class="alt-yazi" style="margin-top:10px">Dosyanın SHA-256 parmak izi</div>
+        <div class="hash">${d.dosyaSha}</div>
+      </div>
+      ${tamam
+        ? `<button class="ana" onclick="yedekPaylas()">Dosyalar'a kaydet</button>
+           <p class="ipucu sol">Açılan menüde <b>Dosyalar'a Kaydet</b> › <b>iCloud Drive</b>'ı seç. İkinci bir kopyayı e-posta ya da WhatsApp ile bilgisayarına da gönder.</p>
+           <button class="ikincil" onclick="yedekIndir()">İndir (menü açılmazsa)</button>`
+        : `<p class="ipucu sol" style="color:var(--kirmizi)">Bu kopya doğrulanamadı; güvenilir değil. Lütfen ekran görüntüsünü gönder.</p>
+           <button class="ikincil" onclick="yedekIndir()">İncelemek için yine de indir</button>`}`;
+    btn.textContent = 'Yeni kopya oluştur'; btn.disabled = false;
+  } catch (err) {
+    alan.innerHTML = `<h2>Güvenlik kopyası</h2><div class="kart-kutu"><b style="color:var(--kirmizi)">Kopya oluşturulamadı</b><p class="alt-yazi" style="white-space:normal">${esc(err && err.message || err)}</p></div>`;
+    btn.textContent = 'Tekrar dene'; btn.disabled = false;
+  }
+}
 
 // ================= Başlat =================
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
