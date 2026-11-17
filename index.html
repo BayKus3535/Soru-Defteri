@@ -7,55 +7,110 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Soru Defteri">
-<meta name="theme-color" content="#14161b">
+<meta name="theme-color" content="#0e1014">
 <title>Soru Defteri</title>
 <style>
-:root{--bg:#14161b;--kart:#1f232b;--cizgi:#2c313b;--yazi:#eceef2;--soluk:#9aa1ad;--ana:#4f8cff;--yesil:#2fa36b;--kirmizi:#d9534f}
+:root{
+  --bg:#0e1014; --kart:#171a21; --kart2:#20242e; --cizgi:#272b35;
+  --yazi:#f1f3f7; --soluk:#8b93a1; --ana:#5b8cff; --yesil:#2fb378; --kirmizi:#ef5a5a;
+  --tyt:linear-gradient(135deg,#3366ff 0%,#4fb8ff 100%);
+  --ayt:linear-gradient(135deg,#7c4dff 0%,#e9609b 100%);
+}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{margin:0;background:var(--bg);color:var(--yazi);font:16px/1.4 -apple-system,system-ui,sans-serif;padding-bottom:calc(100px + env(safe-area-inset-bottom))}
-header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:rgba(20,22,27,.95);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--cizgi)}
-header h1{font-size:18px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#geri{background:none;border:0;color:var(--ana);font-size:34px;line-height:1;padding:0 10px 4px 0;width:auto;margin:0}
-main{padding:16px;max-width:700px;margin:0 auto}
-h2{font-size:13px;color:var(--soluk);text-transform:uppercase;letter-spacing:.06em;margin:24px 0 8px}
-.liste{list-style:none;margin:0;padding:0;background:var(--kart);border-radius:12px;overflow:hidden}
-.liste li{display:flex;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--cizgi);cursor:pointer}
-.liste li:last-child{border:0}
-.liste small{color:var(--soluk)}
-.kart{background:var(--kart);border-radius:12px;padding:16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer}
-.kart.vurgu{background:var(--ana);color:#fff}
-.kart small{opacity:.9}
-button{font:inherit;border:0;border-radius:12px;padding:14px;width:100%;cursor:pointer;margin-top:12px}
+html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--yazi);font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;padding-bottom:calc(110px + env(safe-area-inset-bottom));-webkit-font-smoothing:antialiased}
+
+/* Üst çubuk */
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:6px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:rgba(14,16,20,.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid transparent;transition:border-color .2s}
+header.golge{border-bottom-color:var(--cizgi)}
+header h1{font-size:17px;font-weight:700;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header.buyuk h1{font-size:32px;font-weight:800;letter-spacing:-.025em;padding-top:6px}
+#geri{background:none;border:0;color:var(--ana);font-size:36px;line-height:1;padding:0 10px 4px 0;width:auto;margin:0}
+main{padding:8px 16px 16px;max-width:720px;margin:0 auto}
+h2{font-size:13px;color:var(--soluk);text-transform:uppercase;letter-spacing:.07em;font-weight:700;margin:28px 4px 10px}
+
+/* Ana sayfa */
+.selam{color:var(--soluk);margin:0 0 16px 2px;font-size:15px}
+.hero{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px;border-radius:22px;background:var(--kart);border:1px solid var(--cizgi);cursor:pointer}
+.hero-sayi{font-size:46px;font-weight:800;line-height:1;letter-spacing:-.03em}
+.hero-yazi{color:var(--soluk);margin-top:6px;font-size:15px}
+.hero-ipucu{color:#5f6673;font-size:12.5px;margin-top:4px}
+.hero-btn{background:var(--ana);color:#fff;font-weight:700;padding:11px 18px;border-radius:999px;white-space:nowrap}
+.sinavlar{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.sinav{position:relative;overflow:hidden;border-radius:22px;padding:16px;color:#fff;cursor:pointer;min-height:168px;display:flex;flex-direction:column}
+.sinav.tyt{background:var(--tyt)} .sinav.ayt{background:var(--ayt)}
+.sinav::before,.sinav::after{content:'';position:absolute;border-radius:50%;background:rgba(255,255,255,.13)}
+.sinav::before{width:130px;height:130px;right:-40px;bottom:-45px}
+.sinav::after{width:60px;height:60px;right:40px;top:-25px;background:rgba(255,255,255,.08)}
+.sinav-ad{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
+.sinav-alt{opacity:.88;font-size:14px;font-weight:500}
+.sinav-bilgi{position:relative;z-index:1;margin-top:auto;display:flex;flex-direction:column;gap:1px;font-size:13.5px}
+.sinav-bilgi b{font-size:15px}
+.serit{display:flex;gap:10px;overflow-x:auto;margin:0 -16px;padding:0 16px 4px;scrollbar-width:none}
+.serit::-webkit-scrollbar{display:none}
+.serit img{width:100px;height:100px;object-fit:cover;border-radius:14px;flex:none;background:#fff;cursor:pointer}
+
+/* Listeler */
+.liste{list-style:none;margin:0;padding:0;background:var(--kart);border-radius:18px;overflow:hidden}
+.liste li{display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;position:relative}
+.liste li+li::before{content:'';position:absolute;top:0;right:0;left:62px;border-top:1px solid var(--cizgi)}
+.liste.duz li+li::before{left:14px}
+.liste li:active{background:var(--kart2)}
+.rozet{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:19px;flex:none;background:color-mix(in srgb,var(--r) 24%,transparent)}
+.ad{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sayi{background:var(--kart2);color:var(--soluk);font-size:13px;font-weight:600;padding:2px 9px;border-radius:999px}
+.sayi.dolu{background:color-mix(in srgb,var(--ana) 22%,transparent);color:#a9c1ff}
+.ok{color:#4a505c;font-size:24px;line-height:1;margin-top:-2px}
+
+/* Butonlar */
+button{font:inherit;border:0;border-radius:14px;padding:15px;width:100%;cursor:pointer;margin-top:12px}
 button:disabled{opacity:.5}
-.ana{background:var(--ana);color:#fff;font-weight:600}
-.ikincil{background:var(--kart);color:var(--ana)}
-.tehlike{background:none;color:var(--kirmizi);margin-top:28px}
-#alt{position:fixed;left:0;right:0;bottom:0;padding:0 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 35%)}
+.ana{background:var(--ana);color:#fff;font-weight:700}
+.ikincil{background:var(--kart);color:var(--ana);font-weight:600}
+.tehlike{background:none;color:var(--kirmizi);margin-top:28px;font-size:15px}
+#alt{position:fixed;left:0;right:0;bottom:0;padding:16px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(rgba(14,16,20,0),var(--bg) 40%)}
 #alt:empty{display:none}
-#alt>*{max-width:668px;margin-left:auto;margin-right:auto}
+#alt>*{max-width:688px;margin-left:auto;margin-right:auto}
 .iki{display:flex;gap:10px}.iki button{flex:1}
-.yesil{background:var(--yesil);color:#fff;font-weight:600}
-.kirmizi{background:var(--kirmizi);color:#fff;font-weight:600}
-.izgara{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:12px}
-.izgara img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:#fff;cursor:pointer}
+.yesil{background:var(--yesil);color:#fff;font-weight:700}
+.kirmizi{background:var(--kirmizi);color:#fff;font-weight:700}
+
+/* Soru görselleri */
+.izgara{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:4px}
 .izgara .bos{grid-column:1/-1}
-.buyuk{width:100%;border-radius:12px;display:block;margin-top:8px;background:#fff}
-.etiket{color:var(--soluk);font-size:14px;margin:16px 0 6px;display:block}
-.foto{display:flex;align-items:center;justify-content:center;text-align:center;min-height:180px;border:2px dashed var(--cizgi);border-radius:12px;color:var(--soluk);cursor:pointer;overflow:hidden;position:relative}
+.kutu{position:relative;cursor:pointer}
+.kutu img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:14px;background:#fff;display:block}
+.etiketcik{position:absolute;left:7px;top:7px;background:var(--ana);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px}
+.buyuk-resim{width:100%;border-radius:16px;display:block;margin-top:8px;background:#fff}
+.yol{color:var(--soluk);font-size:14px;margin:4px 2px 8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.yol span{background:var(--kart);padding:3px 10px;border-radius:999px}
+
+/* Form */
+.etiket{color:var(--soluk);font-size:14px;margin:18px 2px 6px;display:block}
+.foto{display:flex;align-items:center;justify-content:center;text-align:center;min-height:190px;border:2px dashed var(--cizgi);border-radius:18px;color:var(--soluk);cursor:pointer;overflow:hidden;position:relative;background:var(--kart)}
 .foto.kucuk{min-height:90px;margin-top:12px}
-.foto span{width:100%}
+.foto span{width:100%;padding:12px}
+.foto .simge{font-size:30px;display:block;margin-bottom:4px}
 .foto img{width:100%;display:block;background:#fff}
 .foto.dolu{border-style:solid}
+.foto.dolu span{padding:0}
 .gizli{position:absolute;opacity:0;width:1px;height:1px;overflow:hidden}
-textarea,input.yazi{width:100%;font:inherit;color:var(--yazi);background:var(--kart);border:1px solid var(--cizgi);border-radius:10px;padding:12px}
-.cozum{margin-top:16px;background:var(--kart);border-radius:12px;padding:4px 16px 12px}
-.cozum summary{padding:12px 0;color:var(--ana);font-weight:600;cursor:pointer}
-.metin{white-space:pre-wrap}
-.not{background:#3a3220;color:#f3d98b;padding:10px 12px;border-radius:10px;white-space:pre-wrap}
-.bos{color:var(--soluk);text-align:center;padding:24px 0}
+textarea,input.yazi{width:100%;font:inherit;color:var(--yazi);background:var(--kart);border:1px solid var(--cizgi);border-radius:14px;padding:13px}
+textarea:focus,input.yazi:focus{outline:none;border-color:var(--ana)}
+
+/* Çözüm / tekrar */
+.cozum{margin-top:16px;background:var(--kart);border-radius:16px;padding:2px 16px 12px}
+.cozum summary{padding:13px 0;color:var(--ana);font-weight:700;cursor:pointer;list-style:none}
+.cozum summary::-webkit-details-marker{display:none}
+.cozum[open] summary{color:var(--soluk)}
+.metin{white-space:pre-wrap;margin:4px 0 8px}
+.not{background:#2e2716;color:#f3d98b;padding:11px 14px;border-radius:14px;white-space:pre-wrap;margin-top:12px}
+.bos{color:var(--soluk);text-align:center;padding:26px 8px;margin:0}
 .kucuk-yazi{color:var(--soluk);font-size:13px;text-align:center;margin-top:16px}
-.bitti{text-align:center;padding:40px 0;font-size:18px}
-.bitti .buyuk-emoji{font-size:56px;margin:0}
+.ilerleme{height:5px;background:var(--kart2);border-radius:999px;overflow:hidden;margin:2px 0 12px}
+.ilerleme div{height:100%;background:var(--ana);border-radius:999px;transition:width .3s}
+.bitti{text-align:center;padding:48px 0;font-size:18px}
+.bitti .emoji{font-size:60px;margin:0}
 </style>
 </head>
 <body>
@@ -63,21 +118,50 @@ textarea,input.yazi{width:100%;font:inherit;color:var(--yazi);background:var(--k
 <main id="icerik"></main>
 <div id="alt"></div>
 <script>
-// ---------- Varsayılan dersler (uygulamadan ekleyip silebilirsin) ----------
-const VARSAYILAN = ["Türkçe","Matematik","Geometri","Fizik","Kimya","Biyoloji","Tarih","Coğrafya","Felsefe","Din Kültürü","Edebiyat"]
-  .map(ad => ({ ad, konular: [] }));
+// ================= Müfredat (uygulamadan ders/konu ekleyip silebilirsin) =================
+const MUFREDAT = {
+  TYT: [
+    { ad: "Türkçe", konular: ["Sözcükte Anlam","Cümlede Anlam","Paragraf","Ses Bilgisi","Yazım Kuralları","Noktalama İşaretleri","Sözcük Yapısı","Sözcük Türleri","Fiiller","Cümlenin Ögeleri","Cümle Türleri","Anlatım Bozuklukları"] },
+    { ad: "Matematik", konular: ["Temel Kavramlar","Sayı Basamakları","Bölme ve Bölünebilme","EBOB - EKOK","Rasyonel Sayılar","Basit Eşitsizlikler","Mutlak Değer","Üslü Sayılar","Köklü Sayılar","Çarpanlara Ayırma","Oran - Orantı","Denklem Çözme","Problemler","Kümeler","Mantık","Fonksiyonlar","Polinomlar","Permütasyon - Kombinasyon","Olasılık","Veri ve İstatistik"] },
+    { ad: "Geometri", konular: ["Açılar","Üçgende Açılar","Dik Üçgen","İkizkenar ve Eşkenar Üçgen","Üçgende Alan","Benzerlik","Açıortay ve Kenarortay","Çokgenler","Dörtgenler","Çember ve Daire","Katı Cisimler","Analitik Geometri"] },
+    { ad: "Fizik", konular: ["Fizik Bilimine Giriş","Madde ve Özellikleri","Hareket ve Kuvvet","Enerji","Isı ve Sıcaklık","Elektrostatik","Elektrik Akımı","Manyetizma","Basınç","Kaldırma Kuvveti","Dalgalar","Optik"] },
+    { ad: "Kimya", konular: ["Kimya Bilimi","Atom ve Periyodik Sistem","Kimyasal Türler Arası Etkileşimler","Maddenin Halleri","Doğa ve Kimya","Kimyanın Temel Kanunları","Mol Kavramı","Kimyasal Tepkimeler","Karışımlar","Asitler, Bazlar ve Tuzlar","Kimya Her Yerde"] },
+    { ad: "Biyoloji", konular: ["Canlıların Ortak Özellikleri","Temel Bileşenler","Hücre","Canlıların Sınıflandırılması","Hücre Bölünmeleri","Kalıtım","Ekosistem Ekolojisi"] },
+    { ad: "Tarih", konular: ["Tarih Bilimi","İlk Çağ Uygarlıkları","İlk Türk Devletleri","İslam Tarihi","Türk - İslam Devletleri","Osmanlı Kuruluş","Osmanlı Yükselme","Osmanlı Duraklama ve Gerileme","Osmanlı Dağılma","Kurtuluş Savaşı","Atatürk İlke ve İnkılapları"] },
+    { ad: "Coğrafya", konular: ["Doğa ve İnsan","Dünya'nın Şekli ve Hareketleri","Harita Bilgisi","İklim","İç ve Dış Kuvvetler","Nüfus","Göç","Yerleşme","Ekonomik Faaliyetler","Bölgeler","Doğal Afetler"] },
+    { ad: "Felsefe", konular: ["Felsefeye Giriş","Bilgi Felsefesi","Varlık Felsefesi","Ahlak Felsefesi","Sanat Felsefesi","Din Felsefesi","Siyaset Felsefesi","Bilim Felsefesi"] },
+    { ad: "Din Kültürü", konular: ["Bilgi ve İnanç","Din ve İslam","İslam ve İbadet","Gençlik ve Değerler","Hz. Muhammed","Kur'an ve Yorumu","İslam Düşüncesinde Yorumlar"] }
+  ],
+  AYT: [
+    { ad: "Matematik", konular: ["Fonksiyonlar","Polinomlar","İkinci Dereceden Denklemler","Eşitsizlikler","Parabol","Trigonometri","Logaritma","Diziler","Limit ve Süreklilik","Türev","İntegral","Permütasyon - Kombinasyon - Binom","Olasılık"] },
+    { ad: "Geometri", konular: ["Üçgenler","Çokgenler ve Dörtgenler","Çember ve Daire","Analitik Geometri","Dönüşümler","Çemberin Analitiği","Katı Cisimler"] },
+    { ad: "Fizik", konular: ["Vektörler","Bağıl Hareket","Newton'un Hareket Yasaları","Sabit İvmeli Hareket","Atışlar","İş, Güç ve Enerji","İtme ve Momentum","Tork ve Denge","Kütle Merkezi","Basit Makineler","Elektriksel Kuvvet ve Alan","Elektriksel Potansiyel","Kondansatörler","Manyetizma ve İndüksiyon","Alternatif Akım ve Transformatörler","Çembersel Hareket","Basit Harmonik Hareket","Dalga Mekaniği","Atom Fiziği","Modern Fizik"] },
+    { ad: "Kimya", konular: ["Modern Atom Teorisi","Gazlar","Sıvı Çözeltiler","Kimyasal Tepkimelerde Enerji","Tepkime Hızı","Kimyasal Denge","Asit - Baz Dengesi","Çözünürlük Dengesi","Elektrokimya","Karbon Kimyasına Giriş","Organik Bileşikler","Enerji Kaynakları"] },
+    { ad: "Biyoloji", konular: ["Sinir Sistemi","Endokrin Sistem","Duyu Organları","Destek ve Hareket Sistemi","Sindirim Sistemi","Dolaşım Sistemi","Solunum Sistemi","Boşaltım Sistemi","Üreme Sistemi","Komünite ve Popülasyon Ekolojisi","Nükleik Asitler","Protein Sentezi","Fotosentez ve Kemosentez","Hücresel Solunum","Bitki Biyolojisi"] }
+  ]
+};
+const SINAV = { TYT: { ad: "TYT", alt: "Temel Yeterlilik" }, AYT: { ad: "AYT", alt: "Sayısal" } };
+const STIL = {
+  "Türkçe": ["📖", "#ff6b6b"], "Matematik": ["➗", "#5b8cff"], "Geometri": ["📐", "#22b8cf"],
+  "Fizik": ["⚛️", "#9775fa"], "Kimya": ["🧪", "#20c997"], "Biyoloji": ["🧬", "#51cf66"],
+  "Tarih": ["🏛️", "#fcc419"], "Coğrafya": ["🌍", "#ff922b"], "Felsefe": ["💭", "#f06595"],
+  "Din Kültürü": ["🕌", "#94d82d"]
+};
+const stil = ad => STIL[ad] || ["📚", "#868e96"];
 
 // Tekrar aralıkları (gün): bildikçe soru daha seyrek karşına çıkar
 const ARALIK = [1, 3, 7, 14, 30, 60];
 
 const $ = s => document.querySelector(s);
-const icerik = $('#icerik'), baslik = $('#baslik'), geriBtn = $('#geri'), alt = $('#alt');
+const icerik = $('#icerik'), baslik = $('#baslik'), geriBtn = $('#geri'), alt = $('#alt'), ust = $('header');
 
 function esc(t){ return String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function yeniId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 function karistir(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+const sinavi = s => s.sinav || 'TYT';
+const sirasiGeldi = s => (s.sonraki || 0) <= Date.now();
 
-// ---------- Veritabanı (fotoğraflar telefonun içinde saklanır) ----------
+// ================= Veritabanı (fotoğraflar telefonun içinde saklanır) =================
 let db;
 function dbAc(){
   return new Promise((ok, hata) => {
@@ -102,10 +186,26 @@ const kaydet = soru => istek('readwrite', s => { s.put(soru); });
 const sil    = id => istek('readwrite', s => { s.delete(id); });
 
 function dersler(){
-  try { return JSON.parse(localStorage.getItem('sd_dersler')) || VARSAYILAN; }
-  catch { return VARSAYILAN; }
+  try {
+    const d = JSON.parse(localStorage.getItem('sd_dersler_v2'));
+    if (d && d.TYT && d.AYT) return d;
+  } catch {}
+  return JSON.parse(JSON.stringify(MUFREDAT));
 }
-function dersKaydet(d){ localStorage.setItem('sd_dersler', JSON.stringify(d)); }
+function dersKaydet(d){ localStorage.setItem('sd_dersler_v2', JSON.stringify(d)); }
+
+// Kayıtlı her sorunun dersi/konusu listede olsun (eski sürümden kalanlar dahil)
+async function duzenle(){
+  const sorular = await hepsi(), d = dersler();
+  let degisti = !localStorage.getItem('sd_dersler_v2');
+  for (const s of sorular) {
+    const k = sinavi(s);
+    let ders = d[k].find(x => x.ad === s.ders);
+    if (!ders) { ders = { ad: s.ders, konular: [] }; d[k].push(ders); degisti = true; }
+    if (!ders.konular.includes(s.konu)) { ders.konular.push(s.konu); degisti = true; }
+  }
+  if (degisti) dersKaydet(d);
+}
 
 // Fotoğrafı küçültüp sıkıştırır, telefonda yer kaplamasın diye
 async function kucult(dosya){
@@ -124,7 +224,7 @@ async function kucult(dosya){
   return new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.82));
 }
 
-// ---------- Ekranlar arası geçiş ----------
+// ================= Ekranlar arası geçiş =================
 let gecmis = [], urller = [];
 function url(blob){ const u = URL.createObjectURL(blob); urller.push(u); return u; }
 function temizle(){ urller.forEach(u => URL.revokeObjectURL(u)); urller = []; }
@@ -134,101 +234,147 @@ function geri(){
   gecmis.pop(); temizle();
   const [fn, args] = gecmis[gecmis.length - 1]; fn(...args);
 }
+function yenile(){ temizle(); const [fn, args] = gecmis[gecmis.length - 1]; fn(...args); }
 geriBtn.onclick = geri;
-function ekran(b, html, altHtml = ''){
+function ekran(b, html, altHtml = '', buyuk = false){
   baslik.textContent = b; icerik.innerHTML = html; alt.innerHTML = altHtml;
-  geriBtn.hidden = gecmis.length < 2; window.scrollTo(0, 0);
+  ust.classList.toggle('buyuk', buyuk);
+  geriBtn.hidden = gecmis.length < 2; window.scrollTo(0, 0); golge();
 }
-const sirasiGeldi = s => (s.sonraki || 0) <= Date.now();
+function golge(){ ust.classList.toggle('golge', window.scrollY > 4); }
+window.addEventListener('scroll', golge, { passive: true });
 
-// ---------- Ana sayfa ----------
+function satir(ad, sayi, tik, rozet){
+  const r = rozet ? `<span class="rozet" style="--r:${stil(ad)[1]}">${stil(ad)[0]}</span>` : '';
+  return `<li onclick="${tik}">${r}<span class="ad">${esc(ad)}</span>${sayi ? `<span class="sayi dolu">${sayi}</span>` : ''}<span class="ok">›</span></li>`;
+}
+function yol(...parcalar){ return `<div class="yol">${parcalar.map(p => `<span>${esc(p)}</span>`).join('')}</div>`; }
+function selam(){
+  const s = new Date().getHours();
+  return s < 6 ? 'İyi geceler 🌙' : s < 12 ? 'Günaydın ☀️' : s < 18 ? 'İyi çalışmalar 📚' : 'İyi akşamlar 🌆';
+}
+
+// ================= Ana sayfa =================
 async function anaSayfa(){
   const sorular = await hepsi(), d = dersler();
-  const say = ad => sorular.filter(s => s.ders === ad).length;
   const vade = sorular.filter(sirasiGeldi).length;
+  const kart = k => {
+    const ss = sorular.filter(s => sinavi(s) === k);
+    return `<div class="sinav ${k.toLowerCase()}" onclick="git(sinavSayfasi,'${k}')">
+      <div class="sinav-ad">${SINAV[k].ad}</div>
+      <div class="sinav-alt">${SINAV[k].alt}</div>
+      <div class="sinav-bilgi">
+        <span><b>${ss.length}</b> soru</span>
+        <span><b>${ss.filter(sirasiGeldi).length}</b> tekrar sırada</span>
+        <span><b>${d[k].length}</b> ders</span>
+      </div></div>`;
+  };
+  const son = [...sorular].sort((a, b) => b.tarih - a.tarih).slice(0, 10);
+  let heroYazi, ipucu = '';
+  if (!sorular.length) { heroYazi = 'Henüz soru eklemedin'; ipucu = 'TYT ya da AYT\'ye girip bir konu seç.'; }
+  else if (vade) heroYazi = 'soru bugün tekrar bekliyor';
+  else { heroYazi = 'Bugünlük tekrar bitti 👏'; ipucu = 'Yeni eklenen sorular ertesi gün sıraya girer.'; }
+
   ekran('Soru Defteri', `
-    ${sorular.length ? `<div class="kart vurgu" onclick="tekrarBaslat()"><b>Tekrar et</b><small>Bugün ${vade} soru sırada</small></div>`
-      : `<p class="bos">Hoş geldin! Bir derse girip konu ekle, sonra soru fotoğrafı ekleyebilirsin.</p>`}
-    <h2>Dersler</h2>
-    ${d.length ? `<ul class="liste">${d.map((x, i) => `<li onclick="git(dersSayfasi,${i})"><span>${esc(x.ad)}</span><small>${say(x.ad)}</small></li>`).join('')}</ul>` : ''}
-    <button class="ikincil" onclick="dersEkle()">+ Ders ekle</button>`);
+    <p class="selam">${selam()}</p>
+    <div class="hero" ${sorular.length ? 'onclick="tekrarBaslat()"' : ''}>
+      <div><div class="hero-sayi">${vade}</div><div class="hero-yazi">${heroYazi}</div>${ipucu ? `<div class="hero-ipucu">${ipucu}</div>` : ''}</div>
+      ${vade ? '<div class="hero-btn">Başla ›</div>' : ''}
+    </div>
+    <div class="sinavlar">${kart('TYT')}${kart('AYT')}</div>
+    ${son.length ? `<h2>Son eklenenler</h2><div class="serit">${son.map(s => `<img src="${url(s.soruImg)}" onclick="git(soruDetay,'${s.id}')" alt="Soru">`).join('')}</div>` : ''}
+  `, '', true);
 }
 
-function dersEkle(){
+// ================= TYT / AYT sayfası =================
+async function sinavSayfasi(k){
+  const sorular = (await hepsi()).filter(s => sinavi(s) === k), d = dersler()[k];
+  ekran(k === 'AYT' ? 'AYT · Sayısal' : 'TYT', `
+    ${sorular.length ? `<button class="ana" style="margin-top:4px" onclick="tekrarBaslat('${k}')">${k} sorularını tekrar et</button>` : ''}
+    <h2>Dersler</h2>
+    ${d.length ? `<ul class="liste">${d.map((x, i) => satir(x.ad, sorular.filter(s => s.ders === x.ad).length, `git(dersSayfasi,'${k}',${i})`, true)).join('')}</ul>`
+      : '<p class="bos">Ders yok.</p>'}
+    <button class="ikincil" onclick="dersEkle('${k}')">+ Ders ekle</button>`, '', true);
+}
+
+function dersEkle(k){
   const ad = (prompt('Ders adı:') || '').trim();
   if (!ad) return;
   const d = dersler();
-  if (d.some(x => x.ad === ad)) { alert('Bu ders zaten var.'); return; }
-  d.push({ ad, konular: [] }); dersKaydet(d); anaSayfa();
+  if (d[k].some(x => x.ad === ad)) { alert('Bu ders zaten var.'); return; }
+  d[k].push({ ad, konular: [] }); dersKaydet(d); yenile();
 }
 
-// ---------- Ders sayfası ----------
-async function dersSayfasi(i){
-  const d = dersler()[i];
+// ================= Ders sayfası =================
+async function dersSayfasi(k, i){
+  const d = dersler()[k][i];
   if (!d) { geri(); return; }
-  const sorular = (await hepsi()).filter(s => s.ders === d.ad);
-  const say = k => sorular.filter(s => s.konu === k).length;
+  const sorular = (await hepsi()).filter(s => sinavi(s) === k && s.ders === d.ad);
   ekran(d.ad, `
-    ${sorular.length ? `<div class="kart vurgu" onclick="tekrarBaslat(${i})"><b>Bu dersi tekrar et</b><small>${sorular.length} soru</small></div>` : ''}
+    ${yol(k, d.ad)}
+    ${sorular.length ? `<button class="ana" onclick="tekrarBaslat('${k}',${i})">Bu dersi tekrar et · ${sorular.length} soru</button>` : ''}
     <h2>Konular</h2>
     ${d.konular.length
-      ? `<ul class="liste">${d.konular.map((k, j) => `<li onclick="git(konuSayfasi,${i},${j})"><span>${esc(k)}</span><small>${say(k)}</small></li>`).join('')}</ul>`
+      ? `<ul class="liste duz">${d.konular.map((x, j) => satir(x, sorular.filter(s => s.konu === x).length, `git(konuSayfasi,'${k}',${i},${j})`)).join('')}</ul>`
       : `<p class="bos">Henüz konu yok. Aşağıdan ekle.</p>`}
-    <button class="ikincil" onclick="konuEkle(${i})">+ Konu ekle</button>
-    <button class="tehlike" onclick="dersSil(${i})">Dersi sil</button>`);
+    <button class="ikincil" onclick="konuEkle('${k}',${i})">+ Konu ekle</button>
+    <button class="tehlike" onclick="dersSil('${k}',${i})">Dersi sil</button>`);
 }
 
-function konuEkle(i){
+function konuEkle(k, i){
   const ad = (prompt('Konu adı:') || '').trim();
   if (!ad) return;
   const d = dersler();
-  if (d[i].konular.includes(ad)) { alert('Bu konu zaten var.'); return; }
-  d[i].konular.push(ad); dersKaydet(d); dersSayfasi(i);
+  if (d[k][i].konular.includes(ad)) { alert('Bu konu zaten var.'); return; }
+  d[k][i].konular.push(ad); dersKaydet(d); yenile();
 }
 
-async function dersSil(i){
-  const d = dersler(), ders = d[i];
-  const sorular = (await hepsi()).filter(s => s.ders === ders.ad);
+async function dersSil(k, i){
+  const d = dersler(), ders = d[k][i];
+  const sorular = (await hepsi()).filter(s => sinavi(s) === k && s.ders === ders.ad);
   const mesaj = sorular.length
-    ? `"${ders.ad}" dersi ve içindeki ${sorular.length} soru silinecek. Emin misin?`
-    : `"${ders.ad}" dersi silinsin mi?`;
+    ? `${k} "${ders.ad}" dersi ve içindeki ${sorular.length} soru silinecek. Emin misin?`
+    : `${k} "${ders.ad}" dersi silinsin mi?`;
   if (!confirm(mesaj)) return;
   for (const s of sorular) await sil(s.id);
-  d.splice(i, 1); dersKaydet(d);
-  gecmis = [[anaSayfa, []]]; temizle(); anaSayfa();
+  d[k].splice(i, 1); dersKaydet(d);
+  gecmis.pop(); yenile();
 }
 
-// ---------- Konu sayfası ----------
-async function konuSayfasi(i, j){
-  const d = dersler()[i], k = d && d.konular[j];
-  if (!k) { geri(); return; }
-  const sorular = (await hepsi()).filter(s => s.ders === d.ad && s.konu === k).sort((a, b) => b.tarih - a.tarih);
-  ekran(k, `
-    ${sorular.length ? `<div class="kart vurgu" onclick="tekrarBaslat(${i},${j})"><b>Bu konuyu tekrar et</b><small>${sorular.length} soru</small></div>` : ''}
-    <div class="izgara">${sorular.map(s => `<img src="${url(s.soruImg)}" onclick="git(soruDetay,'${s.id}')" alt="Soru">`).join('') || '<p class="bos">Bu konuda henüz soru yok.</p>'}</div>
-    <button class="tehlike" onclick="konuSil(${i},${j})">Konuyu sil</button>`,
-    `<button class="ana" onclick="git(soruEkle,${i},${j})">+ Soru ekle</button>`);
+// ================= Konu sayfası =================
+async function konuSayfasi(k, i, j){
+  const d = dersler()[k][i], konu = d && d.konular[j];
+  if (!konu) { geri(); return; }
+  const sorular = (await hepsi()).filter(s => sinavi(s) === k && s.ders === d.ad && s.konu === konu).sort((a, b) => b.tarih - a.tarih);
+  ekran(konu, `
+    ${yol(k, d.ad)}
+    ${sorular.length ? `<button class="ikincil" style="margin-top:4px" onclick="tekrarBaslat('${k}',${i},${j})">Bu konuyu tekrar et · ${sorular.length} soru</button>` : ''}
+    <h2>Sorular</h2>
+    <div class="izgara">${sorular.map(s => `<div class="kutu" onclick="git(soruDetay,'${s.id}')"><img src="${url(s.soruImg)}" alt="Soru">${sirasiGeldi(s) ? '<span class="etiketcik">Sırada</span>' : ''}</div>`).join('')
+      || '<p class="bos">Bu konuda henüz soru yok.<br>Aşağıdan ilk sorunu ekle.</p>'}</div>
+    <button class="tehlike" onclick="konuSil('${k}',${i},${j})">Konuyu sil</button>`,
+    `<button class="ana" onclick="git(soruEkle,'${k}',${i},${j})">+ Soru ekle</button>`);
 }
 
-async function konuSil(i, j){
-  const d = dersler(), ders = d[i], k = ders.konular[j];
-  const sorular = (await hepsi()).filter(s => s.ders === ders.ad && s.konu === k);
-  const mesaj = sorular.length ? `"${k}" konusu ve içindeki ${sorular.length} soru silinecek. Emin misin?` : `"${k}" konusu silinsin mi?`;
+async function konuSil(k, i, j){
+  const d = dersler(), ders = d[k][i], konu = ders.konular[j];
+  const sorular = (await hepsi()).filter(s => sinavi(s) === k && s.ders === ders.ad && s.konu === konu);
+  const mesaj = sorular.length ? `"${konu}" konusu ve içindeki ${sorular.length} soru silinecek. Emin misin?` : `"${konu}" konusu silinsin mi?`;
   if (!confirm(mesaj)) return;
   for (const s of sorular) await sil(s.id);
   ders.konular.splice(j, 1); dersKaydet(d);
-  gecmis.pop(); temizle(); dersSayfasi(i);
+  gecmis.pop(); yenile();
 }
 
-// ---------- Soru ekleme ----------
-function soruEkle(i, j){
-  const d = dersler()[i], k = d.konular[j];
+// ================= Soru ekleme =================
+function soruEkle(k, i, j){
+  const d = dersler()[k][i], konu = d.konular[j];
   let soru = null, cozum = null;
   ekran('Soru ekle', `
-    <span class="etiket">${esc(d.ad)} › ${esc(k)}</span>
-    <label class="foto" id="soruAlan"><input type="file" accept="image/*" id="soruDosya" class="gizli"><span>📷<br>Sorunun fotoğrafını ekle<br><small>(kamera ya da galeri)</small></span></label>
-    <label class="etiket" for="cozumMetin">Çözüm (yazı)</label>
-    <textarea id="cozumMetin" rows="4" placeholder="İsteğe bağlı"></textarea>
+    ${yol(k, d.ad, konu)}
+    <label class="foto" id="soruAlan"><input type="file" accept="image/*" id="soruDosya" class="gizli"><span><span class="simge">📷</span>Sorunun fotoğrafını ekle<br><small>kamera ya da galeri</small></span></label>
+    <label class="etiket" for="cozumMetin">Çözüm</label>
+    <textarea id="cozumMetin" rows="4" placeholder="İsteğe bağlı: çözümü ya da püf noktasını yaz"></textarea>
     <label class="foto kucuk" id="cozumAlan"><input type="file" accept="image/*" id="cozumDosya" class="gizli"><span>📷 Çözümün fotoğrafı (isteğe bağlı)</span></label>
     <label class="etiket" for="not">Not</label>
     <input class="yazi" id="not" placeholder="Örn: tuzak şık var, formülü unutma">`,
@@ -247,9 +393,9 @@ function soruEkle(i, j){
     e.target.disabled = true;
     try {
       await kaydet({
-        id: yeniId(), ders: d.ad, konu: k, soruImg: soru, cozumImg: cozum,
+        id: yeniId(), sinav: k, ders: d.ad, konu, soruImg: soru, cozumImg: cozum,
         cozumMetin: $('#cozumMetin').value.trim(), not: $('#not').value.trim(),
-        tarih: Date.now(), tekrar: 0, seviye: 0, sonraki: 0
+        tarih: Date.now(), tekrar: 0, seviye: 0, sonraki: Date.now() + 864e5
       });
       geri();
     } catch (err) {
@@ -259,19 +405,19 @@ function soruEkle(i, j){
   };
 }
 
-// ---------- Soru detayı ----------
+// ================= Soru detayı =================
 function cozumHtml(s){
   return ((s.cozumMetin ? `<p class="metin">${esc(s.cozumMetin)}</p>` : '') +
-          (s.cozumImg ? `<img class="buyuk" src="${url(s.cozumImg)}" alt="Çözüm">` : ''))
-         || '<p class="bos">Çözüm eklenmemiş.</p>';
+          (s.cozumImg ? `<img class="buyuk-resim" src="${url(s.cozumImg)}" alt="Çözüm">` : ''))
+         || '<p class="bos" style="padding:8px 0 4px">Çözüm eklenmemiş.</p>';
 }
 
 async function soruDetay(id){
   const s = await getir(id);
   if (!s) { geri(); return; }
   ekran(s.konu, `
-    <span class="etiket">${esc(s.ders)} › ${esc(s.konu)}</span>
-    <img class="buyuk" src="${url(s.soruImg)}" alt="Soru">
+    ${yol(sinavi(s), s.ders, s.konu)}
+    <img class="buyuk-resim" src="${url(s.soruImg)}" alt="Soru">
     ${s.not ? `<p class="not">${esc(s.not)}</p>` : ''}
     <details class="cozum"><summary>Çözümü göster</summary>${cozumHtml(s)}</details>
     <p class="kucuk-yazi">${s.tekrar || 0} kez tekrar edildi</p>
@@ -283,14 +429,15 @@ async function soruSil(id){
   await sil(id); geri();
 }
 
-// ---------- Tekrar modu ----------
+// ================= Tekrar modu =================
 let oturum = null;
-async function tekrarBaslat(i, j){
+async function tekrarBaslat(k, i, j){
   let liste = await hepsi();
   const d = dersler();
-  if (i !== undefined) {
-    liste = liste.filter(s => s.ders === d[i].ad);
-    if (j !== undefined) liste = liste.filter(s => s.konu === d[i].konular[j]);
+  if (k !== undefined) {
+    liste = liste.filter(s => sinavi(s) === k);
+    if (i !== undefined) liste = liste.filter(s => s.ders === d[k][i].ad);
+    if (j !== undefined) liste = liste.filter(s => s.konu === d[k][i].konular[j]);
   }
   if (!liste.length) { alert('Tekrar edilecek soru yok.'); return; }
   let secilen = liste.filter(sirasiGeldi);
@@ -304,16 +451,18 @@ async function tekrarBaslat(i, j){
 
 async function tekrarEkrani(){
   if (!oturum) { geri(); return; }
-  if (oturum.n >= oturum.ids.length) {
-    ekran('Bitti', `<div class="bitti"><p class="buyuk-emoji">🎉</p><p>${oturum.ids.length} soruyu tekrar ettin.</p><p>Bildiğin: ${oturum.bildi}</p></div>`,
+  const toplam = oturum.ids.length;
+  if (oturum.n >= toplam) {
+    ekran('Tekrar bitti', `<div class="bitti"><p class="emoji">🎉</p><p><b>${toplam}</b> soruyu tekrar ettin.</p><p style="color:var(--soluk)">Bildiğin: ${oturum.bildi} · Bilemediğin: ${toplam - oturum.bildi}</p></div>`,
       `<button class="ana" onclick="tekrarBitir()">Tamam</button>`);
     return;
   }
   const s = await getir(oturum.ids[oturum.n]);
   if (!s) { oturum.n++; return tekrarEkrani(); }
-  ekran(`${oturum.n + 1} / ${oturum.ids.length}`, `
-    <span class="etiket">${esc(s.ders)} › ${esc(s.konu)}</span>
-    <img class="buyuk" src="${url(s.soruImg)}" alt="Soru">
+  ekran(`Tekrar · ${oturum.n + 1} / ${toplam}`, `
+    <div class="ilerleme"><div style="width:${oturum.n / toplam * 100}%"></div></div>
+    ${yol(sinavi(s), s.ders, s.konu)}
+    <img class="buyuk-resim" src="${url(s.soruImg)}" alt="Soru">
     ${s.not ? `<p class="not">${esc(s.not)}</p>` : ''}
     <details class="cozum"><summary>Çözümü göster</summary>${cozumHtml(s)}</details>`,
     `<div class="iki"><button class="kirmizi" onclick="cevap(false)">Bilemedim</button><button class="yesil" onclick="cevap(true)">Bildim</button></div>`);
@@ -338,9 +487,9 @@ async function cevap(bildi){
 
 function tekrarBitir(){ oturum = null; geri(); }
 
-// ---------- Başlat ----------
+// ================= Başlat =================
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
-dbAc().then(() => git(anaSayfa)).catch(err => {
+dbAc().then(duzenle).then(() => git(anaSayfa)).catch(err => {
   icerik.innerHTML = `<p class="bos">Uygulama açılamadı: ${esc(err && err.message || err)}</p>`;
 });
 </script>
