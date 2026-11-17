@@ -268,6 +268,21 @@ textarea:focus,input.yazi:focus{outline:none;border-color:var(--ana)}
 .grup-satir p{margin:0;color:var(--soluk);font-size:14px}
 .yesil-yazi{color:var(--yesil) !important}
 
+/* Geri yükleme */
+.kars{display:grid;grid-template-columns:1fr 74px 84px;gap:8px;padding:8px 0;border-top:1px solid var(--cizgi);font-size:14px;align-items:center}
+.kars b{text-align:right;font-variant-numeric:tabular-nums}
+.kars-baslik{border-top:0;margin-top:8px;color:var(--soluk);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.kars-baslik b{font-weight:700}
+.mod-sec{display:flex;flex-direction:column;gap:10px}
+.mod{margin:0;text-align:left;background:var(--kart);border:1.5px solid var(--cizgi);color:var(--yazi);padding:14px 16px;border-radius:18px}
+.mod b{display:flex;align-items:center;gap:8px;font-size:16px}
+.mod small{display:block;color:var(--soluk);font-size:13.5px;margin-top:4px;line-height:1.4}
+.mod.secili{border-color:var(--ana);background:rgba(99,102,241,.08)}
+.onerilen{font-size:11px;font-weight:800;color:var(--ana-acik);background:rgba(99,102,241,.18);padding:2px 8px;border-radius:999px}
+.onay-kutu{display:flex;gap:10px;align-items:flex-start;margin-top:12px;font-size:14px;color:var(--yazi);background:var(--kart);border:1px solid var(--cizgi);border-radius:14px;padding:12px}
+.onay-kutu input{width:20px;height:20px;margin:0;flex:none}
+.dosya-btn{display:block;text-align:center;border-radius:16px;padding:15px;margin-top:12px;cursor:pointer;position:relative}
+
 /* Veri Durumu ve Yedekleme */
 .grup-satir.tikla{cursor:pointer}
 .grup-satir.tikla:active{background:var(--kart2)}
@@ -614,6 +629,7 @@ function git(fn, ...args){
   gecmis.push({ fn, args, y: 0 }); sonrakiY = 0; fn(...args);
 }
 function geri(){
+  if (islemKilit) return;            // geri yükleme sürerken geri gidilmez
   if (gecmis.length < 2) return;
   gecmis.pop(); temizle();
   const g = gecmis[gecmis.length - 1]; sonrakiY = g.y || 0; g.fn(...g.args);
@@ -636,7 +652,7 @@ function ekran(b, html, altHtml = '', buyuk = false, arti = ''){
 // ================= Alt menü (sekmeler) =================
 const SEKMELER = [['ana', 'ev', 'Ana Sayfa'], ['dersler', 'dersler', 'Dersler'], ['tekrar', 'tekrar', 'Tekrar'], ['ist', 'ist', 'İstatistikler'], ['ayar', 'ayar', 'Ayarlar']];
 const sekmeKok = s => ({ ana: anaSayfa, dersler: sinavSayfasi, tekrar: tekrarMerkezi, ist: istatistik, ayar: ayarlar })[s];
-function sekmeAc(s, ...args){ temizle(); gecmis = []; sonrakiY = 0; git(sekmeKok(s), ...args); }
+function sekmeAc(s, ...args){ if (islemKilit) return; temizle(); gecmis = []; sonrakiY = 0; git(sekmeKok(s), ...args); }
 function sekmeleriBoya(){
   const nav = $('#sekmeler');
   if (!nav.children.length) nav.innerHTML = SEKMELER.map(([s, ik, ad]) => `<button data-s="${s}" onclick="sekmeAc('${s}')">${ui(ik)}<span>${ad}</span></button>`).join('');
@@ -1121,7 +1137,7 @@ async function ayarlar(){
   const cozumlu = sorular.filter(s => s.cozumImg || s.cozumMetin).length;
   ekran('Ayarlar', `
     <h2>Veri güvenliği</h2>
-    <div class="grup"><div class="grup-satir tikla" onclick="git(veriDurumu)"><span>Veri Durumu ve Yedekleme</span><span class="ok">${ui('sag')}</span></div></div>
+    <div class="grup"><div class="grup-satir tikla" onclick="git(veriDurumu)"><span>Veri Durumu ve Yedekleme</span><span class="ok">${ui('sag')}</span></div><div class="grup-satir tikla" onclick="git(geriYukle)"><span>Yedekten Geri Yükle</span><span class="ok">${ui('sag')}</span></div></div>
     <h2>Veriler</h2>
     <div class="grup">
       <div class="grup-satir"><span>Kayıtlı soru</span><b>${sorular.length}</b></div>
@@ -1378,7 +1394,7 @@ function tekrarBitir(){ oturum = null; geri(); }
 //  - IndexedDB: yalnızca 'readonly' işlem (count, getAll, get); sürüm yükseltme yok, yeni bağlantı açılmaz
 //  - localStorage: yalnızca okuma (key, getItem)
 // Geri yükleme bu sürümde YOKTUR.
-var UYGULAMA_SURUMU = '1.6';
+var UYGULAMA_SURUMU = '1.7';
 const JSON_ANAHTARLAR = ['sd_dersler_v2', 'sd_tamam', 'sd_gunluk', 'sd_dersler'];
 const BILINEN_ANAHTAR = {
   sd_dersler_v2: 'Ders ve konu listesi', sd_tamam: 'Tamamlanan konular', sd_gunluk: 'Günlük tekrar sayıları',
@@ -1785,9 +1801,698 @@ async function yedekBaslat(){
   }
 }
 
+// ================= Yedekten Geri Yükleme (sürüm 1.7) =================
+// Kurallar:
+//  - Yedek önce bellekte tamamen doğrulanır; doğrulama aşamasında hiçbir şey yazılmaz.
+//  - Bu cihazın güvenlik kopyası alınıp bağımsız doğrulanmadan VE Dosyalar'a kaydedilmeden
+//    soruDefteri veritabanına ya da localStorage'a tek bir yazma yapılmaz.
+//  - Sorular TEK bir IndexedDB işleminde yazılır (ya hepsi ya hiçbiri).
+//  - Yalnızca Soru Defteri'nin anahtarları değişir; başka projelerin anahtarlarına dokunulmaz.
+//  - Her adım bir işlem kaydına yazılır; yarıda kalırsa açılışta kurtarma ekranı çıkar.
+const UYG_ANAHTARLAR = ['sd_dersler_v2', 'sd_tamam', 'sd_gunluk', 'sd_gunluk_kaynak', 'sd_son_sinav', 'sd_dersler'];
+const ISLEM_ANAHTARI = 'sd_islem';   // yarıda kalan işlem kaydı (hiçbir zaman yedekten yüklenmez)
+const CIHAZ_ANAHTARI = 'sd_cihaz';   // bu cihazın kimliği (hiçbir zaman yedekten yüklenmez)
+const GUV_DB = 'soruDefteriGuvenlik';
+let islemKilit = false;
+
+// Alt işlem çubuğu doluyken alt menü gizlenir (ekran() fonksiyonunun kuralının aynısı; bu bölümdeki doğrudan yazmalar için)
+new MutationObserver(() => document.body.classList.toggle('navli', !alt.innerHTML.trim())).observe(alt, { childList: true, subtree: true });
+
+// ---------- yardımcılar ----------
+function kanonik(v){
+  if (v === null || typeof v !== 'object') return JSON.stringify(v === undefined ? null : v);
+  if (Array.isArray(v)) return '[' + v.map(kanonik).join(',') + ']';
+  return '{' + Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => JSON.stringify(k) + ':' + kanonik(v[k])).join(',') + '}';
+}
+const metinSha = s => sha256(new TextEncoder().encode(s));
+function jsonOku(v, varsayilan){ if (v === undefined || v === null) return varsayilan; try { const x = JSON.parse(v); return x && typeof x === 'object' ? x : varsayilan; } catch { return varsayilan; } }
+const kopyala = o => JSON.parse(JSON.stringify(o));
+
+// Bir görselin parmak izi (SHA-256 + tip + boyut). Aynı Blob için bir kez hesaplanır.
+const _gIz = new WeakMap();
+async function gorselIzi(blob, id, alan){
+  if (_gIz.has(blob)) return _gIz.get(blob);
+  let buf;
+  if (id !== undefined) ({ buf } = await blobOku(id, alan, blob)); else buf = await blob.arrayBuffer();
+  const r = { sha: await sha256(buf), tip: blob.type || '', boyut: buf.byteLength };
+  _gIz.set(blob, r); return r;
+}
+// Bir sorunun parmak izi: bütün alanlar + her görselin SHA-256/tip/boyutu (alan sırası önemsiz)
+async function kayitIzi(s, cihazdan){
+  const o = {};
+  for (const [a, v] of Object.entries(s)) {
+    if (v === undefined) continue;
+    if (v instanceof Blob) { const g = await gorselIzi(v, cihazdan ? s.id : undefined, a); o[a] = { __gorsel: g.sha, tip: g.tip, boyut: g.boyut }; }
+    else if (v instanceof Date) o[a] = { __tarih: v.toISOString() };
+    else o[a] = v;
+  }
+  return metinSha(kanonik(o));
+}
+async function haritaToplam(h){ return metinSha([...h.entries()].sort((x, y) => x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0).map(e => e[0] + ':' + e[1]).join('\n')); }
+async function kayitlarIzi(kayitlar, cihazdan, ilerle){
+  const harita = new Map(); let n = 0;
+  for (const s of kayitlar) { harita.set(s.id, await kayitIzi(s, cihazdan)); if (ilerle) ilerle(++n, kayitlar.length); }
+  return { harita, toplam: await haritaToplam(harita), sayi: kayitlar.length };
+}
+const yabanciAnahtarlar = ls => Object.keys(ls).filter(k => !UYG_ANAHTARLAR.includes(k) && k !== ISLEM_ANAHTARI && k !== CIHAZ_ANAHTARI).sort();
+const yabanciIzi = ls => metinSha(kanonik(Object.fromEntries(yabanciAnahtarlar(ls).map(k => [k, ls[k]]))));
+
+// ---------- ZIP okuyucu (sıkıştırmasız + bilgisayarda yeniden sıkıştırılmış dosyalar) ----------
+async function zipAc(buf){
+  const v = new DataView(buf), u8 = new Uint8Array(buf), dec = new TextDecoder();
+  let e = -1;
+  for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 22 - 65535); i--) if (v.getUint32(i, true) === 0x06054b50) { e = i; break; }
+  if (e < 0) throw new Error('Bu bir yedek dosyası değil (arşiv yapısı bulunamadı).');
+  const adet = v.getUint16(e + 10, true); let p = v.getUint32(e + 16, true);
+  const sonuc = new Map();
+  for (let i = 0; i < adet; i++) {
+    if (p + 46 > buf.byteLength || v.getUint32(p, true) !== 0x02014b50) throw new Error('Arşivin içindekiler listesi bozuk.');
+    const yontem = v.getUint16(p + 10, true), crc = v.getUint32(p + 16, true);
+    const csz = v.getUint32(p + 20, true), usz = v.getUint32(p + 24, true);
+    const adU = v.getUint16(p + 28, true), exU = v.getUint16(p + 30, true), yoU = v.getUint16(p + 32, true), lo = v.getUint32(p + 42, true);
+    const ad = dec.decode(u8.subarray(p + 46, p + 46 + adU));
+    p += 46 + adU + exU + yoU;
+    if (ad.endsWith('/')) continue;
+    if (lo + 30 > buf.byteLength || v.getUint32(lo, true) !== 0x04034b50) throw new Error('Arşivde bozuk dosya başlığı: ' + ad);
+    const bas = lo + 30 + v.getUint16(lo + 26, true) + v.getUint16(lo + 28, true);
+    if (bas + csz > buf.byteLength) throw new Error('Arşiv eksik, dosya yarıda kesilmiş olabilir: ' + ad);
+    let veri = u8.subarray(bas, bas + csz);
+    if (yontem === 8) {
+      if (typeof DecompressionStream === 'undefined') throw new Error('Bu yedek sıkıştırılmış; bu cihaz açamıyor. Orijinal .sdyedek dosyasını kullan.');
+      veri = new Uint8Array(await new Response(new Blob([veri]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    } else if (yontem !== 0) throw new Error('Desteklenmeyen sıkıştırma yöntemi: ' + ad);
+    if (veri.length !== usz) throw new Error('Dosya boyutu tutmuyor: ' + ad);
+    if (crc32(veri) !== crc) throw new Error('CRC32 sağlaması tutmuyor: ' + ad);
+    sonuc.set(ad, veri);
+  }
+  return sonuc;
+}
+
+// ---------- Yedeği çöz ve doğrula (hiçbir şey yazmaz) ----------
+async function yedekCoz(buf, ilerle){
+  if (!buf || !buf.byteLength) throw new Error('Dosya boş.');
+  const hatalar = [], uyarilar = [], H = m => hatalar.push(m);
+  const dosyaSha = await sha256(buf);
+  const ham = await zipAc(buf);
+  const adaylar = [...ham.keys()].filter(k => !k.startsWith('__MACOSX/') && (k === 'manifest.json' || k.endsWith('/manifest.json'))).sort((a, b) => a.length - b.length);
+  if (!adaylar.length) throw new Error('manifest.json bulunamadı; bu bir Soru Defteri yedeği değil.');
+  const on = adaylar[0].slice(0, -'manifest.json'.length);
+  const dosyalar = new Map();
+  for (const [k, v] of ham) if (k.startsWith(on) && !k.startsWith('__MACOSX/')) dosyalar.set(k.slice(on.length), v);
+  let m;
+  try { m = JSON.parse(new TextDecoder().decode(dosyalar.get('manifest.json'))); } catch { throw new Error('manifest.json okunamıyor.'); }
+  if (!m || m.bicim !== 'sdyedek') throw new Error('Bu dosya bir Soru Defteri yedeği değil.');
+  if (typeof m.bicimSurumu !== 'number' || m.bicimSurumu < 1) throw new Error('Yedek biçim sürümü okunamıyor.');
+  if (m.bicimSurumu > 1) throw new Error(`Bu yedek daha yeni bir uygulama sürümüyle alınmış (biçim ${m.bicimSurumu}). Önce uygulamayı güncelle.`);
+  if (!Array.isArray(m.sorular) || !Array.isArray(m.gorseller) || !m.localStorage || typeof m.localStorage !== 'object' || Array.isArray(m.localStorage)) throw new Error('manifest.json gerekli alanları içermiyor.');
+
+  for (const [k, v] of Object.entries(m.localStorage)) if (typeof v !== 'string') H(`localStorage "${k}" değeri metin değil`);
+  for (const k of ['sd_dersler_v2', 'sd_tamam', 'sd_gunluk', 'sd_gunluk_kaynak', 'sd_dersler']) {
+    if (m.localStorage[k] === undefined) continue;
+    let x; try { x = JSON.parse(m.localStorage[k]); } catch { H(`${k} bozuk (okunamıyor)`); continue; }
+    if (!x || typeof x !== 'object') H(`${k} beklenen yapıda değil`);
+  }
+  const dl = jsonOku(m.localStorage.sd_dersler_v2, null);
+  if (m.localStorage.sd_dersler_v2 !== undefined && !(dl && Array.isArray(dl.TYT) && Array.isArray(dl.AYT))) H('Ders listesi beklenen yapıda değil');
+
+  const gHarita = new Map();
+  for (const g of m.gorseller) {
+    if (!g || typeof g.dosya !== 'string' || typeof g.sha256 !== 'string' || typeof g.boyut !== 'number') { H('Görsel listesinde geçersiz bir kayıt var'); continue; }
+    if (gHarita.has(g.dosya)) H('Görsel listesinde tekrar eden dosya: ' + g.dosya);
+    gHarita.set(g.dosya, g);
+  }
+  const kayitlar = [], kimlik = new Set(), kullanilan = new Set();
+  let n = 0;
+  for (const s of m.sorular) {
+    if (!s || typeof s !== 'object' || typeof s.id !== 'string' || !s.id) { H('Kimliği geçersiz bir soru var'); continue; }
+    if (kimlik.has(s.id)) { H('Yedekte aynı kimlik iki kez geçiyor: ' + s.id); continue; }
+    kimlik.add(s.id);
+    if (typeof s.ders !== 'string' || !s.ders || typeof s.konu !== 'string' || !s.konu) H('Dersi ya da konusu boş soru: ' + s.id);
+    const r = {};
+    for (const [a, v] of Object.entries(s)) {
+      if (v && typeof v === 'object' && '__dosya' in v) {
+        const g = gHarita.get(v.__dosya), veri = dosyalar.get(v.__dosya);
+        kullanilan.add(v.__dosya);
+        if (!g) { H('Görsel listede yok: ' + v.__dosya); continue; }
+        if (!veri) { H('Görsel dosyası arşivde yok: ' + v.__dosya); continue; }
+        if (veri.length !== g.boyut) { H('Görsel boyutu tutmuyor: ' + v.__dosya); continue; }
+        if (await sha256(veri) !== g.sha256) { H('Görselin SHA-256 değeri tutmuyor: ' + v.__dosya); continue; }
+        if (g.soruId !== s.id || g.alan !== a) H('Görsel başka bir soruya ait görünüyor: ' + v.__dosya);
+        const blob = new Blob([veri], { type: g.tip || '' });   // baytlar ve tip aynen
+        _gIz.set(blob, { sha: g.sha256, tip: g.tip || '', boyut: veri.length });
+        r[a] = blob;
+        if (ilerle) ilerle(++n, m.gorseller.length);
+      } else if (v && typeof v === 'object' && '__tarih' in v) r[a] = new Date(v.__tarih);
+      else r[a] = v;
+    }
+    if (!(r.soruImg instanceof Blob)) uyarilar.push('Soru görseli olmayan kayıt: ' + s.id);
+    kayitlar.push(r);
+  }
+  for (const d of gHarita.keys()) if (!kullanilan.has(d)) uyarilar.push('Hiçbir soruya bağlı olmayan görsel: ' + d);
+  const t0 = m.indexedDB && Array.isArray(m.indexedDB.tablolar) && m.indexedDB.tablolar[0];
+  if (t0 && typeof t0.kayitSayisi === 'number' && t0.kayitSayisi !== m.sorular.length) H(`Soru sayısı tutmuyor (${m.sorular.length} / ${t0.kayitSayisi})`);
+  if (m.ozet && typeof m.ozet.soru === 'number' && m.ozet.soru !== m.sorular.length) H('Özet soru sayısı tutmuyor');
+  let acilmayan = 0;
+  for (const r of kayitlar) for (const a of gorselAlanlari(r)) if (!(await gorselCozulur(await r[a].arrayBuffer(), r[a].type))) acilmayan++;
+  if (acilmayan) uyarilar.push(`${acilmayan} görsel açılamıyor; yedek alınırken de böyleydi, ham hâliyle korunacak`);
+  return { m, kayitlar, hatalar, uyarilar, dosyaSha, sayilar: sayimYap(kayitlar, m.localStorage) };
+}
+
+function sayimYap(kayitlar, ls){
+  const dl = jsonOku(ls.sd_dersler_v2, { TYT: [], AYT: [] }), tm = jsonOku(ls.sd_tamam, {}), gl = jsonOku(ls.sd_gunluk, {});
+  const liste = k => Array.isArray(dl[k]) ? dl[k] : [];
+  return {
+    tyt: liste('TYT').length, ayt: liste('AYT').length,
+    konu: [...liste('TYT'), ...liste('AYT')].reduce((a, x) => a + ((x && x.konular) || []).length, 0),
+    soru: kayitlar.length,
+    soruG: kayitlar.filter(s => s.soruImg instanceof Blob).length,
+    cozumG: kayitlar.filter(s => s.cozumImg instanceof Blob).length,
+    tamam: Object.values(tm).reduce((a, l) => a + (Array.isArray(l) ? l.length : 0), 0),
+    gun: Object.keys(gl).filter(g => gl[g] && gl[g].t > 0).length
+  };
+}
+
+// ---------- Günlük tekrar sayıları ----------
+// sd_gunluk[gün] = {t: o gün basılan cevap sayısı, b: "Bildim" sayısı}. Bunlar cihaz başına artan sayaçlardır.
+// Aynı cihazdan gelen sayıları toplamak çift sayım, farklı cihazdan gelenlerde büyük olanı almak kayıp olur.
+// Bu yüzden başka cihazlardan gelen sayılar sd_gunluk_kaynak'ta cihaz kimliğiyle ayrıca tutulur:
+//   sd_gunluk = bu cihazın kendi sayıları + Σ başka cihazların sayıları   (sd_gunluk biçimi değişmez)
+const sayi = x => (Number.isFinite(x) && x > 0 ? x : 0);
+function gunTopla(...loglar){
+  const o = {};
+  for (const l of loglar) for (const [g, x] of Object.entries(l || {})) { const y = o[g] || { t: 0, b: 0 }; y.t += sayi(x && x.t); y.b += sayi(x && x.b); o[g] = y; }
+  return o;
+}
+function gunCikar(a, b){
+  const o = {};
+  for (const [g, x] of Object.entries(a || {})) { const y = (b || {})[g] || {}; const t = Math.max(0, sayi(x && x.t) - sayi(y.t)); const bb = Math.min(t, Math.max(0, sayi(x && x.b) - sayi(y.b))); if (t || bb) o[g] = { t, b: bb }; }
+  return o;
+}
+function gunMaks(a, b){
+  const o = {};
+  for (const g of new Set([...Object.keys(a || {}), ...Object.keys(b || {})])) { const x = (a || {})[g] || {}, y = (b || {})[g] || {}; o[g] = { t: Math.max(sayi(x.t), sayi(y.t)), b: Math.max(sayi(x.b), sayi(y.b)) }; }
+  return o;
+}
+function gunlukPlani(mod, A, Adis, me, B, Bdis, X){
+  const ownA = gunCikar(A, gunTopla(...Object.values(Adis)));
+  const ownB = gunCikar(B, gunTopla(...Object.values(Bdis)));
+  if (mod === 'birlestir') {
+    if (!X) {
+      // Kaynağı bilinmeyen yedek (1.6 ve öncesi): aynı cihazın eski yedeği olabileceği için toplanmaz,
+      // her gün için büyük olan alınır. Çift sayım olmaz; yedekteki sayılar bu cihazınkinden büyükse yedekteki alınır.
+      const toplam = gunMaks(A, gunTopla(B));
+      const farkli = Object.keys(B).filter(g => (A[g] || {}).t && sayi((B[g] || {}).t) !== sayi((A[g] || {}).t)).length;
+      return { gunluk: toplam, kaynak: Adis, not: `Yedeğin hangi cihazdan alındığı kayıtlı değil (eski sürüm yedeği). Çift sayım olmaması için her gün için büyük olan sayı alınacak${farkli ? `; ${farkli} günde iki taraf farklı` : ''}.` };
+    }
+    const dis = kopyala(Adis), gelen = { ...Bdis, [X]: ownB };
+    for (const [S, log] of Object.entries(gelen)) { if (S === me) continue; dis[S] = gunMaks(dis[S] || {}, log); }
+    return { gunluk: gunTopla(ownA, ...Object.values(dis)), kaynak: dis, not: X === me ? 'Yedek bu cihazdan alınmış; bu cihazın sayıları tekrar eklenmeyecek.' : 'Yedek başka bir cihazdan alınmış; o cihazın sayıları bu cihazınkilere eklenecek (aynı yedek iki kez yüklense de çift sayılmaz).' };
+  }
+  if (!X) return { gunluk: gunTopla(B), kaynak: Bdis, not: 'Günlük sayılar yedektekiyle değiştirilecek.' };
+  const gelen = { ...Bdis, [X]: ownB }, dis = {};
+  for (const [S, log] of Object.entries(gelen)) if (S !== me) dis[S] = log;
+  return { gunluk: gunTopla(gelen[me] || {}, ...Object.values(dis)), kaynak: dis, not: 'Günlük sayılar yedektekiyle değiştirilecek.' };
+}
+
+// ---------- localStorage planı (yalnızca Soru Defteri anahtarları) ----------
+function derslerBirlestir(a, b){
+  const o = kopyala(a);
+  for (const k of ['TYT', 'AYT']) {
+    o[k] = Array.isArray(o[k]) ? o[k] : [];
+    for (const bd of (b && Array.isArray(b[k]) ? b[k] : [])) {
+      if (!bd || !bd.ad) continue;
+      const ad = o[k].find(x => x && x.ad === bd.ad);
+      if (!ad) o[k].push(kopyala(bd));
+      else { ad.konular = Array.isArray(ad.konular) ? ad.konular : []; for (const kn of (bd.konular || [])) if (!ad.konular.includes(kn)) ad.konular.push(kn); }
+    }
+  }
+  return o;
+}
+function lsPlani(mod, A, B){
+  const hedef = {}, ayarla = (k, v) => { if ((A[k] ?? null) !== v) hedef[k] = v; };
+  let me = A[CIHAZ_ANAHTARI]; if (!me) { me = 'c-' + yeniId(); hedef[CIHAZ_ANAHTARI] = me; }
+  const X = B[CIHAZ_ANAHTARI] || null;
+  if (mod === 'degistir') {
+    for (const k of ['sd_dersler_v2', 'sd_tamam', 'sd_son_sinav', 'sd_dersler']) ayarla(k, B[k] === undefined ? null : B[k]);
+  } else {
+    const ad = jsonOku(A.sd_dersler_v2, null), bd = jsonOku(B.sd_dersler_v2, null);
+    if (bd) ayarla('sd_dersler_v2', ad ? JSON.stringify(derslerBirlestir(ad, bd)) : B.sd_dersler_v2);
+    if (B.sd_tamam !== undefined) {
+      const o = kopyala(jsonOku(A.sd_tamam, {}));
+      for (const [k, l] of Object.entries(jsonOku(B.sd_tamam, {}))) { const x = Array.isArray(o[k]) ? o[k] : []; for (const kn of (Array.isArray(l) ? l : [])) if (!x.includes(kn)) x.push(kn); o[k] = x; }
+      ayarla('sd_tamam', JSON.stringify(o));
+    }
+    if (A.sd_son_sinav === undefined && B.sd_son_sinav !== undefined) ayarla('sd_son_sinav', B.sd_son_sinav);
+    if (A.sd_dersler === undefined && B.sd_dersler !== undefined) ayarla('sd_dersler', B.sd_dersler);
+  }
+  const gp = gunlukPlani(mod, jsonOku(A.sd_gunluk, {}), jsonOku(A.sd_gunluk_kaynak, {}), me, jsonOku(B.sd_gunluk, {}), jsonOku(B.sd_gunluk_kaynak, {}), X);
+  const esit = (eski, yeni) => kanonik(jsonOku(eski, {})) === kanonik(yeni);
+  if (!esit(A.sd_gunluk, gp.gunluk)) ayarla('sd_gunluk', Object.keys(gp.gunluk).length ? JSON.stringify(gp.gunluk) : (mod === 'degistir' ? null : JSON.stringify(gp.gunluk)));
+  if (!esit(A.sd_gunluk_kaynak, gp.kaynak)) ayarla('sd_gunluk_kaynak', Object.keys(gp.kaynak).length ? JSON.stringify(gp.kaynak) : null);
+  const onceki = {}; for (const k of Object.keys(hedef)) onceki[k] = A[k] ?? null;
+  return { hedef, onceki, not: gp.not, me, X };
+}
+
+// ---------- Plan ----------
+async function planHazirla(mod, c, cihaz, cIz, yIz){
+  const cihazIdler = new Set(cihaz.kayitlar.map(s => s.id));
+  let yazilacak, hedefHarita, rapor;
+  if (mod === 'degistir') {
+    yazilacak = c.kayitlar; hedefHarita = new Map(yIz.harita);
+    rapor = { silinecek: cihaz.kayitlar.length, yazilacak: c.kayitlar.length };
+  } else {
+    const yeni = [], ayni = [], cakisan = [];
+    for (const r of c.kayitlar) {
+      if (!cihazIdler.has(r.id)) yeni.push(r);                                // kimlik cihazda yok -> eklenir
+      else if (cIz.harita.get(r.id) === yIz.harita.get(r.id)) ayni.push(r.id); // aynı kimlik, aynı içerik -> zaten var
+      else cakisan.push({ id: r.id, yer: yerYaz(r) });                        // aynı kimlik, farklı içerik -> cihazdaki korunur
+    }
+    yazilacak = yeni; hedefHarita = new Map(cIz.harita);
+    for (const r of yeni) hedefHarita.set(r.id, yIz.harita.get(r.id));
+    rapor = { eklenecek: yeni.length, ayni: ayni.length, cakisan };
+  }
+  const lp = lsPlani(mod, cihaz.ls, c.m.localStorage);
+  return { mod, hepsiniSil: mod === 'degistir', yazilacak, hedefSayi: hedefHarita.size, hedefToplam: await haritaToplam(hedefHarita),
+           oncekiToplam: cIz.toplam, oncekiSayi: cIz.sayi, lsHedef: lp.hedef, lsOnceki: lp.onceki, gunlukNot: lp.not, rapor };
+}
+
+// ---------- Yazma (tek IndexedDB işlemi + geri alınabilir localStorage) ----------
+function islemYaz(o){ localStorage.setItem(ISLEM_ANAHTARI, JSON.stringify(o)); }
+function lsUygula(hedef, onceki){
+  const yazilan = [];
+  try {
+    for (const [k, v] of Object.entries(hedef)) {
+      if (!UYG_ANAHTARLAR.includes(k) && k !== CIHAZ_ANAHTARI) throw new Error('İzin verilmeyen anahtar: ' + k);
+      if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v);
+      yazilan.push(k);
+    }
+  } catch (e) {
+    for (const k of yazilan) { try { if (onceki[k] === null || onceki[k] === undefined) localStorage.removeItem(k); else localStorage.setItem(k, onceki[k]); } catch {} }
+    throw e;
+  }
+}
+function idbYaz(hepsiniSil, kayitlar){
+  return new Promise((ok, hata) => {
+    let t;
+    try { t = db.transaction('sorular', 'readwrite'); } catch (e) { hata(e); return; }
+    t.oncomplete = () => ok();
+    t.onerror = () => hata(t.error || new Error('Veritabanına yazılamadı'));
+    t.onabort = () => hata(t.error || new Error('Veritabanı işlemi iptal edildi; hiçbir şey değişmedi'));
+    try {
+      const st = t.objectStore('sorular');
+      if (hepsiniSil) st.clear();
+      for (const r of kayitlar) { if (hepsiniSil) st.put(r); else st.add(r); }   // birleştirmede add: var olan kaydın üstüne asla yazmaz
+    } catch (e) { try { t.abort(); } catch {} hata(e); }
+  });
+}
+
+// ---------- Sonradan doğrulama (her şey yeniden okunur) ----------
+async function sonucDogrula(b, ilerle){
+  // b: {toplam, sayi, lsBeklenen: {anahtar: değer|null}, yabanciIz}
+  const k = [], kontrol = (ad, ok, detay = '') => k.push({ ad, ok, detay });
+  const kayitlar = await salt(st => st.getAll());
+  const iz = await kayitlarIzi(kayitlar, true, ilerle);
+  kontrol(`Soru sayısı (${iz.sayi} / ${b.sayi})`, iz.sayi === b.sayi);
+  kontrol('Bütün sorular ve görselleri (SHA-256, tip, boyut) beklenenle birebir aynı', iz.toplam === b.toplam);
+  let acilmayan = 0, gorsel = 0;
+  for (const s of kayitlar) for (const a of gorselAlanlari(s)) { gorsel++; try { const { buf, tip } = await blobOku(s.id, a, s[a]); if (!(await gorselCozulur(buf, tip))) acilmayan++; } catch { acilmayan++; } }
+  kontrol(`Görseller okunabiliyor (${gorsel} görsel)`, true, acilmayan ? `${acilmayan} görsel görüntü olarak açılmıyor (yedekte de böyleydi)` : '');
+  const ls = lsOku(), ad = { sd_dersler_v2: 'Dersler ve konular', sd_tamam: 'Tamamlanan konular', sd_gunluk: 'İstatistikler (günlük tekrar sayıları)',
+    sd_gunluk_kaynak: 'İstatistiklerin cihaz kaynakları', sd_son_sinav: 'Son seçilen sınav', sd_dersler: 'Eski ders listesi', sd_cihaz: 'Cihaz kimliği' };
+  for (const [a, v] of Object.entries(b.lsBeklenen)) kontrol(ad[a] || a, (ls[a] ?? null) === v);
+  kontrol('Başka projelerin localStorage verileri değişmedi', (await yabanciIzi(ls)) === b.yabanciIz);
+  const dl = jsonOku(ls.sd_dersler_v2, null);
+  if (dl) kontrol(`Ders listesi okunuyor (${(dl.TYT || []).length} TYT, ${(dl.AYT || []).length} AYT ders)`, Array.isArray(dl.TYT) && Array.isArray(dl.AYT));
+  return k;
+}
+
+// ---------- Ayrı güvenlik veritabanı (son iki iç kopya + işlem kayıtları) ----------
+function guvAc(){
+  return new Promise((ok, hata) => {
+    const r = indexedDB.open(GUV_DB, 1);
+    r.onupgradeneeded = () => { const d = r.result; if (!d.objectStoreNames.contains('kopyalar')) d.createObjectStore('kopyalar', { keyPath: 'id' }); if (!d.objectStoreNames.contains('islemler')) d.createObjectStore('islemler', { keyPath: 'id' }); };
+    r.onsuccess = () => ok(r.result); r.onerror = () => hata(r.error);
+    r.onblocked = () => hata(new Error('Güvenlik veritabanı açılamadı; uygulamanın başka bir penceresi açık olabilir.'));
+  });
+}
+function guvIstek(gdb, depo, mod, fn){
+  return new Promise((ok, hata) => {
+    const t = gdb.transaction(depo, mod); const r = fn(t.objectStore(depo));
+    t.oncomplete = () => ok(r && r.result); t.onerror = () => hata(t.error); t.onabort = () => hata(t.error || new Error('İşlem iptal edildi'));
+  });
+}
+async function kopyaSakla(gdb, kopya){
+  await guvIstek(gdb, 'kopyalar', 'readwrite', s => { s.put(kopya); });
+  const geri = await guvIstek(gdb, 'kopyalar', 'readonly', s => s.get(kopya.id));
+  if (!geri || !(geri.blob instanceof Blob) || (await sha256(await geri.blob.arrayBuffer())) !== kopya.sha) throw new Error('İç güvenlik kopyası doğrulanamadı');
+  const hepsi = (await guvIstek(gdb, 'kopyalar', 'readonly', s => s.getAll())).sort((a, b) => b.zaman - a.zaman);
+  for (const eski of hepsi.slice(2)) await guvIstek(gdb, 'kopyalar', 'readwrite', s => { s.delete(eski.id); });   // yalnızca güvenlik veritabanından
+}
+
+// ---------- Eski hâline döndür (iç güvenlik kopyasından ya da harici dosyadan) ----------
+async function kopyadanGeriDon(buf, islemId, ilerle){
+  const c = await yedekCoz(buf);
+  if (c.hatalar.length) throw new Error('Güvenlik kopyası doğrulanamadı: ' + c.hatalar[0]);
+  const iz = await kayitlarIzi(c.kayitlar, false);
+  const lsHedef = {}, ls = lsOku(), lsOnceki = {};
+  for (const k of [...UYG_ANAHTARLAR, CIHAZ_ANAHTARI]) { lsHedef[k] = c.m.localStorage[k] ?? null; lsOnceki[k] = ls[k] ?? null; }
+  const yIz = await yabanciIzi(ls);
+  islemYaz({ id: islemId, durum: 'geri_aliniyor', zaman: Date.now() });
+  await idbYaz(true, c.kayitlar);
+  lsUygula(lsHedef, lsOnceki);
+  const k = await sonucDogrula({ toplam: iz.toplam, sayi: iz.sayi, lsBeklenen: lsHedef, yabanciIz: yIz }, ilerle);
+  if (!k.every(x => x.ok)) throw new Error('Eski hâle dönüş doğrulanamadı');
+  localStorage.removeItem(ISLEM_ANAHTARI);
+  return k;
+}
+async function iceKopyaOku(gdb, kopyaId){
+  const kp = await guvIstek(gdb, 'kopyalar', 'readonly', s => s.get(kopyaId));
+  if (!kp) throw new Error('İç güvenlik kopyası bulunamadı');
+  for (let d = 0; d < 3; d++) { try { return await kp.blob.arrayBuffer(); } catch (e) { if (d === 2) throw e; await bekle(200); } }
+}
+
+// ================= Ekranlar =================
+let gy = null;
+const gySatir = (ad, a, b) => `<div class="kars"><span>${ad}</span><b>${a}</b><b>${b}</b></div>`;
+function kontrolListe(k){ return `<ul class="kontroller">${k.map(x => `<li><span class="isaret ${x.ok ? 'ok-i' : 'hata-i'}">${x.ok ? '✓' : '✕'}</span><div>${esc(x.ad)}${x.detay ? `<small>${esc(x.detay)}</small>` : ''}</div></li>`).join('')}</ul>`; }
+function kilitle(acik, uyari = acik){
+  islemKilit = acik;   // gezinme kilidi
+  window.onbeforeunload = uyari ? (e => { e.preventDefault(); e.returnValue = ''; return ''; }) : null;   // yalnızca yazma sürerken
+}
+
+async function geriYukle(){
+  gy = { adim: 1 };
+  let kopyalar = [];
+  try { if (indexedDB.databases && (await indexedDB.databases()).some(d => d.name === GUV_DB)) { const gdb = await guvAc(); kopyalar = (await guvIstek(gdb, 'kopyalar', 'readonly', s => s.getAll())).sort((a, b) => b.zaman - a.zaman); gdb.close(); } } catch {}
+  ekran('Yedekten Geri Yükle', `
+    <div class="vd-not">${ui('tik')}<span>Önce yedek dosyası kontrol edilir. Sen onay vermeden ve bu cihazın güvenlik kopyası Dosyalar'a kaydedilmeden hiçbir veri değiştirilmez.</span></div>
+    <h2>1 · Yedek dosyasını seç</h2>
+    <label class="foto kucuk" id="gyAlan"><input type="file" id="gyDosya" class="gizli"><span><span class="simge">${ui('dersler')}</span><b style="color:var(--yazi)">.sdyedek dosyası seç</b><br><small>iPhone'da Dosyalar, bilgisayarda klasörler açılır</small></span></label>
+    <div id="gyIcerik"></div>
+    ${kopyalar.length ? `<h2>İç güvenlik kopyaları</h2><div class="grup">${kopyalar.map(k => `<div class="grup-satir"><span>${new Date(k.zaman).toLocaleString('tr-TR')}<small>${k.soru} soru · ${boyutYaz(k.boyut)} · geri yükleme öncesi alındı</small></span><button class="ince" style="width:auto;margin:0;padding:6px 0" onclick="iceKopyaKaydet('${k.id}')">Kaydet</button></div>`).join('')}</div>
+      <p class="ipucu sol">Bu kopyaları Dosyalar'a kaydedip yukarıdan seçerek eski bir hâle dönebilirsin. Son iki kopya saklanır.</p>` : ''}`);
+  $('#gyDosya').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) gyDosyaOku(f); };
+}
+async function iceKopyaKaydet(id){
+  try { const gdb = await guvAc(); const kp = await guvIstek(gdb, 'kopyalar', 'readonly', s => s.get(id)); gdb.close();
+        await zorunluKaydet(new File([kp.blob], kp.ad, { type: 'application/zip' })); } catch (e) { alert('Kaydedilemedi: ' + (e && e.message || e)); }
+}
+
+async function gyDosyaOku(f){
+  const alan = $('#gyIcerik');
+  alan.innerHTML = `<div class="kart-kutu" style="margin-top:12px"><b id="gyYazi">Yedek kontrol ediliyor…</b><div class="ilerleme" style="margin-top:12px"><div id="gyBar" style="width:5%"></div></div><span class="alt-yazi">Bu aşamada hiçbir şey yazılmaz.</span></div>`;
+  const bar = (o, y) => { const b = $('#gyBar'); if (b) { b.style.width = o + '%'; $('#gyYazi').textContent = y; } };
+  try {
+    const buf = await f.arrayBuffer();
+    const c = await yedekCoz(buf, (n, t) => bar(5 + n / t * 45, `Görseller kontrol ediliyor: ${n} / ${t}`));
+    const cihaz = { kayitlar: await salt(st => st.getAll()), ls: lsOku() };
+    const yIz = await kayitlarIzi(c.kayitlar, false);
+    const cIz = await kayitlarIzi(cihaz.kayitlar, true, (n, t) => bar(50 + n / t * 45, `Bu cihazdaki sorular okunuyor: ${n} / ${t}`));
+    gy = { adim: 2, dosyaAdi: f.name, dosyaBoyut: f.size, c, cihaz, cIz, yIz, mod: 'birlestir',
+           planlar: { birlestir: await planHazirla('birlestir', c, cihaz, cIz, yIz), degistir: await planHazirla('degistir', c, cihaz, cIz, yIz) } };
+    gyOnizleme();
+  } catch (e) {
+    alan.innerHTML = `<div class="kart-kutu" style="margin-top:12px"><ul class="kontroller"><li><span class="isaret hata-i">✕</span><div>Bu dosya geri yüklenemez<small>${esc(e && e.message || e)}</small></div></li></ul></div><p class="ipucu sol">Hiçbir veri değiştirilmedi.</p>`;
+  }
+}
+
+function gyOnizleme(){
+  const { c, cihaz } = gy, ys = c.sayilar, cs = sayimYap(cihaz.kayitlar, cihaz.ls);
+  const pb = gy.planlar.birlestir, pd = gy.planlar.degistir, m = c.m;
+  const hataVar = c.hatalar.length > 0;
+  $('#gyIcerik').innerHTML = `
+    <h2>2 · Yedeğin içeriği</h2>
+    <div class="kart-kutu">
+      <div class="alt-yazi" style="white-space:normal">${esc(gy.dosyaAdi)} · ${m.olusturma ? new Date(m.olusturma).toLocaleString('tr-TR') : 'tarih yok'} · uygulama ${esc(m.uygulamaSurumu || '?')}</div>
+      <div class="kars kars-baslik"><span></span><b>Yedekte</b><b>Bu cihazda</b></div>
+      ${gySatir('TYT dersi', ys.tyt, cs.tyt)}${gySatir('AYT dersi', ys.ayt, cs.ayt)}${gySatir('Konu', ys.konu, cs.konu)}
+      ${gySatir('Soru', ys.soru, cs.soru)}${gySatir('Soru görseli', ys.soruG, cs.soruG)}${gySatir('Çözüm görseli', ys.cozumG, cs.cozumG)}
+      ${gySatir('Tamamlanan konu', ys.tamam, cs.tamam)}${gySatir('Tekrar yapılan gün', ys.gun, cs.gun)}
+    </div>
+    <div class="kart-kutu" style="margin-top:12px"><ul class="kontroller">
+      <li><span class="isaret ok-i">✓</span><div>Arşiv sağlam, CRC32 ve SHA-256 değerleri tutuyor<small>Dosya SHA-256: ${c.dosyaSha.slice(0, 16)}…</small></div></li>
+      ${c.hatalar.map(h => `<li><span class="isaret hata-i">✕</span><div>${esc(h)}</div></li>`).join('')}
+      ${c.uyarilar.map(h => `<li><span class="isaret uyari-i">!</span><div>${esc(h)}</div></li>`).join('')}
+    </ul></div>
+    ${hataVar ? `<p class="ipucu sol" style="color:var(--kirmizi)">Bu yedekte hata var; geri yüklenemez. Hiçbir veri değiştirilmedi.</p>` : `
+    <h2>3 · Nasıl geri yüklensin?</h2>
+    <div class="mod-sec">
+      <button class="mod ${gy.mod === 'birlestir' ? 'secili' : ''}" onclick="gyMod('birlestir')"><b>Birleştir <span class="onerilen">Önerilen</span></b>
+        <small>Bu cihazdaki veriler korunur. ${pb.rapor.eklenecek} soru eklenecek, ${pb.rapor.ayni} soru zaten var${pb.rapor.cakisan.length ? `, ${pb.rapor.cakisan.length} soru farklı içerikli (cihazdaki hâli korunacak)` : ''}. Dersler, konular ve tamamlanan konular birleştirilir.</small></button>
+      <button class="mod ${gy.mod === 'degistir' ? 'secili' : ''}" onclick="gyMod('degistir')"><b>Tamamen değiştir</b>
+        <small>Bu cihazdaki ${pd.rapor.silinecek} soru ve Soru Defteri ayarları silinir, yerine yedekteki ${pd.rapor.yazilacak} soru yazılır.</small></button>
+    </div>
+    ${gy.mod === 'birlestir' && pb.rapor.cakisan.length ? `<div class="kart-kutu" style="margin-top:12px"><b style="font-size:14px">Cihazdaki hâli korunacak sorular</b><ul class="kontroller" style="margin-top:6px">${pb.rapor.cakisan.map(x => `<li><span class="isaret bilgi-i">i</span><div>${esc(x.yer)}<small>${esc(x.id)}</small></div></li>`).join('')}</ul></div>` : ''}
+    <p class="ipucu sol">${esc(gy.planlar[gy.mod].gunlukNot)} Başka projelere ait veriler değiştirilmez.</p>`}`;
+  alt.innerHTML = hataVar ? '' : `<button class="ana" id="gyIleri">Devam: güvenlik kopyası</button>`;
+  if (!hataVar) $('#gyIleri').onclick = gyGuvenlik;
+}
+function gyMod(m){ gy.mod = m; gyOnizleme(); }
+
+// 4 · Güvenlik kopyası: oluştur, iki ayrı yöntemle doğrula, Dosyalar'a kaydet (zorunlu)
+async function gyGuvenlik(){
+  gy.adim = 3; gy.kaydedildi = false;
+  icerik.innerHTML = `
+    <h2>4 · Bu cihazın güvenlik kopyası</h2>
+    <div class="kart-kutu"><b id="gkYazi">Güvenlik kopyası hazırlanıyor…</b><div class="ilerleme" style="margin-top:12px"><div id="gkBar" style="width:5%"></div></div>
+      <span class="alt-yazi" style="white-space:normal">Bu kopya Dosyalar'a kaydedilmeden geri yükleme başlamaz.</span></div>
+    <div id="gkSonuc"></div>`;
+  alt.innerHTML = `<button class="ikincil" onclick="geriYukle()">Vazgeç</button>`;
+  window.scrollTo(0, 0);
+  const bar = (o, y) => { const b = $('#gkBar'); if (b) { b.style.width = o + '%'; $('#gkYazi').textContent = y; } };
+  try {
+    const y = await yedekOlustur((n, t) => bar(5 + n / t * 35, `Görseller okunuyor: ${n} / ${t}`));
+    bar(45, '1. doğrulama: arşiv, CRC32, SHA-256, veritabanı karşılaştırması');
+    const d = await yedekDogrula(y);
+    bar(70, '2. doğrulama: kopya bağımsız okuyucuyla baştan açılıyor');
+    const buf = await y.dosya.arrayBuffer();
+    const kc = await yedekCoz(buf);
+    const kIz = await kayitlarIzi(kc.kayitlar, false);
+    const simdi = { kayitlar: await salt(st => st.getAll()), ls: lsOku() };
+    const sIz = await kayitlarIzi(simdi.kayitlar, true);
+    const appEsit = UYG_ANAHTARLAR.concat(CIHAZ_ANAHTARI).every(k => (kc.m.localStorage[k] ?? null) === (simdi.ls[k] ?? null));
+    const k2 = [
+      { ad: 'Bağımsız okuyucu kopyayı hatasız açtı', ok: !kc.hatalar.length, detay: kc.hatalar.join('; ') },
+      { ad: `Kopyadaki ${kIz.sayi} soru ve görseli cihazdakilerle birebir aynı`, ok: kIz.toplam === sIz.toplam },
+      { ad: 'Kopyadaki Soru Defteri ayarları cihazdakilerle aynı', ok: appEsit },
+      { ad: 'Geri yükleme planı hazırlandıktan sonra cihazdaki veriler değişmedi', ok: sIz.toplam === gy.cIz.toplam && Object.entries(gy.planlar[gy.mod].lsOnceki).every(([k, v]) => (simdi.ls[k] ?? null) === v) }
+    ];
+    bar(100, 'Doğrulama tamamlandı');
+    const tumu = [...d.k, ...k2], tamam = tumu.every(x => x.ok);
+    gy.guvenlik = { dosya: y.dosya, sha: d.dosyaSha, boyut: d.boyut, soru: y.manifest.ozet.soru, tamam };
+    $('#gkSonuc').innerHTML = `
+      <div class="kart-kutu" style="margin-top:12px">
+        <b style="font-size:15px">${tamam ? 'Güvenlik kopyası doğrulandı' : 'Güvenlik kopyası doğrulanamadı'}</b>
+        <div class="alt-yazi" style="white-space:normal">${esc(y.dosya.name)} · ${boyutYaz(d.boyut)}</div>
+        ${kontrolListe(tumu)}
+      </div>
+      ${tamam ? `<div id="gkKayit"><button class="ana" onclick="gyKaydet()">Dosyalar'a kaydet (zorunlu)</button>
+        <p class="ipucu sol">Açılan menüde <b>Dosyalar'a Kaydet</b>'i seç. Kaydetmeyi iptal edersen geri yükleme başlamaz.</p></div>`
+      : `<p class="ipucu sol" style="color:var(--kirmizi)">Güvenlik kopyası doğrulanamadığı için geri yükleme yapılmayacak. Hiçbir veri değiştirilmedi.</p>`}`;
+  } catch (e) {
+    $('#gkSonuc').innerHTML = `<div class="kart-kutu" style="margin-top:12px"><ul class="kontroller"><li><span class="isaret hata-i">✕</span><div>Güvenlik kopyası oluşturulamadı<small>${esc(e && e.message || e)}</small></div></li></ul></div><p class="ipucu sol">Geri yükleme yapılmayacak. Hiçbir veri değiştirilmedi.</p>`;
+  }
+}
+async function zorunluKaydet(f){
+  const adaylar = [f, new File([f], f.name + '.zip', { type: 'application/zip' })];
+  for (const x of adaylar) {
+    let destek = false; try { destek = !!(navigator.canShare && navigator.canShare({ files: [x] })); } catch {}
+    if (!destek) continue;
+    try { await navigator.share({ files: [x], title: x.name }); return 'paylasildi'; }
+    catch (e) { if (e && e.name === 'AbortError') return 'iptal'; }
+  }
+  const u = URL.createObjectURL(f), a = document.createElement('a');
+  a.href = u; a.download = f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000);
+  return 'indirildi';
+}
+async function gyKaydet(){
+  const sonuc = await zorunluKaydet(gy.guvenlik.dosya), yer = $('#gkKayit');
+  if (sonuc === 'iptal') {
+    yer.innerHTML = `<button class="ana" onclick="gyKaydet()">Dosyalar'a kaydet (zorunlu)</button><p class="ipucu sol" style="color:var(--kirmizi)">Kaydetme iptal edildi. Güvenlik kopyası kaydedilmeden geri yükleme başlamaz.</p>`;
+    return;
+  }
+  if (sonuc === 'indirildi') {
+    yer.innerHTML = `<label class="onay-kutu"><input type="checkbox" id="gkOnay"> <span>Güvenlik kopyasının indirildiğini ve sakladığımı onaylıyorum.</span></label>
+      <button class="ikincil" onclick="gyKaydet()">Tekrar indir</button>`;
+    $('#gkOnay').onchange = e => { gy.kaydedildi = e.target.checked; gyOnayGoster(); };
+    return;
+  }
+  gy.kaydedildi = true;
+  yer.innerHTML = `<ul class="kontroller"><li><span class="isaret ok-i">✓</span><div>Güvenlik kopyası kaydedildi</div></li></ul>`;
+  gyOnayGoster();
+}
+function gyOnayGoster(){
+  const p = gy.planlar[gy.mod];
+  alt.innerHTML = gy.kaydedildi
+    ? `<button class="${gy.mod === 'degistir' ? 'kirmizi' : 'ana'}" id="gyBasla">${gy.mod === 'degistir' ? 'Evet, tamamen değiştir' : `Birleştir: ${p.rapor.eklenecek} soru ekle`}</button>`
+    : `<button class="ikincil" onclick="geriYukle()">Vazgeç</button>`;
+  if (gy.kaydedildi) $('#gyBasla').onclick = gyBaslat;
+}
+
+// 5 · Geri yükleme
+async function gyBaslat(){
+  const p = gy.planlar[gy.mod];
+  if (gy.mod === 'degistir' && !confirm(`Bu cihazdaki ${p.rapor.silinecek} soru silinip yerine yedekteki ${p.rapor.yazilacak} soru yazılacak. Emin misin?`)) return;
+  if (!gy.guvenlik || !gy.guvenlik.tamam || !gy.kaydedildi) return;   // kural: doğrulanmış + kaydedilmiş kopya olmadan başlamaz
+  kilitle(true);
+  const islemId = 'g' + yeniId(), kopyaId = 'k' + yeniId();
+  icerik.innerHTML = `<h2>Geri yükleniyor</h2><div class="kart-kutu"><b id="grYazi">Hazırlanıyor…</b><div class="ilerleme" style="margin-top:12px"><div id="grBar" style="width:3%"></div></div>
+    <span class="alt-yazi" style="white-space:normal">Uygulamadan çıkma ve ekranı kapatma.</span></div><div id="grSonuc"></div>`;
+  alt.innerHTML = `<button class="ikincil" disabled>İşlem sürüyor…</button>`;
+  window.scrollTo(0, 0);
+  const bar = (o, y) => { const b = $('#grBar'); if (b) { b.style.width = o + '%'; $('#grYazi').textContent = y; } };
+  let gdb = null, yazmaBasladi = false;
+  try {
+    // Son kontrol: plan hazırlandıktan sonra cihazdaki veriler değişti mi?
+    bar(5, 'Cihazdaki veriler son kez kontrol ediliyor');
+    const sIz = await kayitlarIzi(await salt(st => st.getAll()), true);
+    const ls0 = lsOku();
+    if (sIz.toplam !== p.oncekiToplam || Object.entries(p.lsOnceki).some(([k, v]) => (ls0[k] ?? null) !== v)) throw new Error('Plan hazırlandıktan sonra cihazdaki veriler değişti. Lütfen baştan başla.');
+    // Yer kontrolü
+    try { const e = await navigator.storage.estimate(); if (e.quota && e.quota - e.usage < (gy.guvenlik.boyut + (gy.dosyaBoyut || 0)) * 2) throw new Error('Cihazda yeterli boş alan yok.'); } catch (e) { if (/boş alan/.test(e.message)) throw e; }
+    const lsSon = { ...ls0 }; for (const [k, v] of Object.entries(p.lsHedef)) { if (v === null) delete lsSon[k]; else lsSon[k] = v; }
+    if (Object.entries(lsSon).reduce((a, [k, v]) => a + (k.length + v.length) * 2, 0) > 4.5 * 1048576) throw new Error('localStorage için yer yetmeyecek.');
+    // İç güvenlik kopyası + işlem kaydı (ayrı veritabanında)
+    bar(15, 'İç güvenlik kopyası saklanıyor');
+    gdb = await guvAc();
+    await kopyaSakla(gdb, { id: kopyaId, zaman: Date.now(), blob: new Blob([gy.guvenlik.dosya], { type: 'application/zip' }), ad: gy.guvenlik.dosya.name, sha: gy.guvenlik.sha, boyut: gy.guvenlik.boyut, soru: gy.guvenlik.soru });
+    const yIz0 = await yabanciIzi(ls0);
+    const lsBeklenen = {}; for (const k of [...UYG_ANAHTARLAR, CIHAZ_ANAHTARI]) lsBeklenen[k] = k in p.lsHedef ? p.lsHedef[k] : (ls0[k] ?? null);
+    const kayit = { id: islemId, mod: gy.mod, kopyaId, zaman: Date.now(), oncekiToplam: p.oncekiToplam, oncekiSayi: p.oncekiSayi,
+                    hedefToplam: p.hedefToplam, hedefSayi: p.hedefSayi, lsHedef: p.lsHedef, lsOnceki: p.lsOnceki, lsBeklenen, yabanciIz: yIz0 };
+    await guvIstek(gdb, 'islemler', 'readwrite', s => { s.put(kayit); });
+    // Yazma
+    bar(30, 'Sorular yazılıyor (tek işlem: ya hepsi ya hiçbiri)');
+    islemYaz({ id: islemId, durum: 'basladi', mod: gy.mod, kopyaId, zaman: Date.now() });
+    yazmaBasladi = true;
+    await idbYaz(p.hepsiniSil, p.yazilacak);
+    islemYaz({ id: islemId, durum: 'idb_tamam', mod: gy.mod, kopyaId, zaman: Date.now() });
+    bar(55, 'Dersler, konular ve istatistikler yazılıyor');
+    lsUygula(p.lsHedef, p.lsOnceki);
+    islemYaz({ id: islemId, durum: 'ls_tamam', mod: gy.mod, kopyaId, zaman: Date.now() });
+    // Doğrulama
+    const k = await sonucDogrula({ toplam: p.hedefToplam, sayi: p.hedefSayi, lsBeklenen, yabanciIz: yIz0 }, (n, t) => bar(60 + n / t * 38, `Doğrulanıyor: ${n} / ${t} soru`));
+    const tamam = k.every(x => x.ok);
+    if (tamam) { localStorage.removeItem(ISLEM_ANAHTARI); await guvIstek(gdb, 'islemler', 'readwrite', s => { s.put({ ...kayit, durum: 'tamamlandi' }); }); }
+    bar(100, tamam ? 'Geri yükleme tamamlandı' : 'Doğrulama başarısız');
+    kilitle(!tamam, false);   // doğrulanmadıysa yalnızca 'Eski hâline döndür' ya da yeniden başlatma
+    $('#grSonuc').innerHTML = `<div class="kart-kutu" style="margin-top:12px"><b style="font-size:15px">${tamam ? 'Geri yükleme tamamlandı ve doğrulandı' : 'Doğrulama başarısız'}</b>${kontrolListe(k)}</div>
+      ${gy.mod === 'birlestir' ? `<p class="ipucu sol">${p.rapor.eklenecek} soru eklendi · ${p.rapor.ayni} soru zaten vardı · ${p.rapor.cakisan.length} soru cihazdaki hâliyle korundu.</p>` : ''}`;
+    alt.innerHTML = tamam ? `<button class="ana" onclick="location.reload()">Uygulamayı yeniden başlat</button>`
+                          : `<button class="kirmizi" onclick="kurtarmaGeriAl('${islemId}')">Eski hâline döndür</button>`;
+  } catch (e) {
+    if (!yazmaBasladi) {
+      kilitle(false);
+      try { if (localStorage.getItem(ISLEM_ANAHTARI)) localStorage.removeItem(ISLEM_ANAHTARI); } catch {}
+      $('#grSonuc').innerHTML = `<div class="kart-kutu" style="margin-top:12px"><ul class="kontroller"><li><span class="isaret hata-i">✕</span><div>Geri yükleme başlamadan durduruldu<small>${esc(e && e.message || e)}</small></div></li><li><span class="isaret ok-i">✓</span><div>Hiçbir veri değiştirilmedi</div></li></ul></div>`;
+      alt.innerHTML = `<button class="ikincil" onclick="geriYukle()">Geri dön</button>`;
+      return;
+    }
+    // Yazma başladıktan sonra hata: otomatik olarak eski hâline döndür
+    bar(60, 'Hata oluştu, eski hâline döndürülüyor');
+    try {
+      const k = await kopyadanGeriDon(await iceKopyaOku(gdb, kopyaId), islemId, (n, t) => bar(60 + n / t * 38, `Eski hâl doğrulanıyor: ${n} / ${t}`));
+      kilitle(false);
+      $('#grSonuc').innerHTML = `<div class="kart-kutu" style="margin-top:12px"><ul class="kontroller"><li><span class="isaret hata-i">✕</span><div>Geri yükleme tamamlanamadı<small>${esc(e && e.message || e)}</small></div></li></ul>
+        <b style="font-size:14px;display:block;margin-top:8px">Veriler eski hâline döndürüldü ve doğrulandı</b>${kontrolListe(k)}</div>`;
+      alt.innerHTML = `<button class="ana" onclick="location.reload()">Uygulamayı yeniden başlat</button>`;
+    } catch (e2) {
+      $('#grSonuc').innerHTML = `<div class="kart-kutu" style="margin-top:12px"><ul class="kontroller"><li><span class="isaret hata-i">✕</span><div>Geri yükleme tamamlanamadı<small>${esc(e && e.message || e)}</small></div></li>
+        <li><span class="isaret hata-i">✕</span><div>Otomatik geri dönüş de tamamlanamadı<small>${esc(e2 && e2.message || e2)}</small></div></li></ul></div>
+        <p class="ipucu sol">Verilerin güvenlik kopyası Dosyalar'da ve uygulamanın içinde duruyor. Uygulamayı yeniden aç; kurtarma ekranı açılacak.</p>`;
+      alt.innerHTML = `<button class="kirmizi" onclick="location.reload()">Kurtarma ekranını aç</button>`;
+      kilitle(false);
+    }
+  }
+}
+
+// ================= Açılışta kurtarma kapısı =================
+// Tamamlanmamış bir geri yükleme varsa normal ekranlar açılmaz; önce bu ekranda çözülür.
+async function kurtarmaKontrol(){
+  let ham = null; try { ham = localStorage.getItem(ISLEM_ANAHTARI); } catch {}
+  if (!ham) return true;
+  let is = null; try { is = JSON.parse(ham); } catch {}
+  gecmis = [{ fn: kurtarmaEkrani, args: [is], y: 0 }];
+  await kurtarmaEkrani(is);
+  return false;
+}
+async function kurtarmaEkrani(is){
+  kilitle(true, false);
+  ekran('Kurtarma gerekli', `<div class="kart-kutu"><b>Yarıda kalan bir geri yükleme bulundu</b><p class="alt-yazi" style="white-space:normal">Durum kontrol ediliyor; hiçbir şey değiştirilmiyor…</p></div>`, `<button class="ikincil" disabled>Kontrol ediliyor…</button>`);
+  let kayit = null, gdb = null, kopyaVar = false;
+  try { gdb = await guvAc(); kayit = is && is.id ? await guvIstek(gdb, 'islemler', 'readonly', s => s.get(is.id)) : null;
+        kopyaVar = !!(kayit && await guvIstek(gdb, 'kopyalar', 'readonly', s => s.get(kayit.kopyaId))); } catch {}
+  const iz = await kayitlarIzi(await salt(st => st.getAll()), true);
+  const ls = lsOku();
+  const esitMi = o => o && Object.entries(o).every(([k, v]) => (ls[k] ?? null) === v);
+  let durum = 'bilinmiyor';
+  if (is && is.durum === 'geri_aliniyor') durum = 'geriAlYarim';
+  else if (kayit && iz.toplam === kayit.oncekiToplam && esitMi(kayit.lsOnceki)) durum = 'degismedi';
+  else if (kayit && iz.toplam === kayit.hedefToplam) durum = esitMi(kayit.lsHedef) ? 'dogrulamaYarim' : 'lsYarim';
+  const mesaj = {
+    degismedi: ['Veriler değişmemiş', 'İşlem, veriler yazılmadan önce kesilmiş. Bütün veriler eskisi gibi duruyor.'],
+    lsYarim: ['Sorular yazılmış, ayarlar yarım kalmış', 'Geri yüklemeyi tamamlayabilir ya da her şeyi işlem öncesi hâline döndürebilirsin.'],
+    dogrulamaYarim: ['Veriler yazılmış, son doğrulama yapılmamış', 'Doğrulamayı tamamlayabilir ya da her şeyi işlem öncesi hâline döndürebilirsin.'],
+    geriAlYarim: ['Eski hâline döndürme yarım kalmış', 'Eski hâline döndürme işlemi baştan çalıştırılacak.'],
+    bilinmiyor: ['Veriler beklenmeyen bir durumda', 'Güvenli seçenek, verileri işlem öncesi hâline döndürmek.']
+  }[durum];
+  const butonlar = [];
+  if (durum === 'degismedi') butonlar.push(`<button class="ana" onclick="kurtarmaKapat()">Devam et</button>`);
+  const tamamlanabilir = durum === 'lsYarim' || durum === 'dogrulamaYarim';
+  if (tamamlanabilir) butonlar.push(`<button class="ana" onclick="kurtarmaTamamla('${is.id}')">${durum === 'lsYarim' ? 'Geri yüklemeyi tamamla' : 'Doğrula ve tamamla'}</button>`);
+  if (durum !== 'degismedi' && kopyaVar) butonlar.push(`<button class="${tamamlanabilir ? 'ikincil' : 'kirmizi'}" onclick="kurtarmaGeriAl('${is.id}')">Eski hâline döndür</button>`);
+  if (!kopyaVar && durum !== 'degismedi') butonlar.push(`<label class="ikincil dosya-btn"><input type="file" id="krDosya" class="gizli">Kaydettiğin güvenlik kopyasından eski hâline döndür</label>`);
+  icerik.innerHTML = `
+    <div class="kart-kutu"><b style="font-size:16px">${mesaj[0]}</b><p class="alt-yazi" style="white-space:normal;margin-top:6px">${mesaj[1]}</p>
+      <ul class="kontroller" style="margin-top:8px">
+        <li><span class="isaret bilgi-i">i</span><div>İşlem: ${is && is.mod === 'degistir' ? 'Tamamen değiştir' : 'Birleştir'} · ${is && is.zaman ? new Date(is.zaman).toLocaleString('tr-TR') : '?'}</div></li>
+        <li><span class="isaret ${kopyaVar ? 'ok-i' : 'uyari-i'}">${kopyaVar ? '✓' : '!'}</span><div>${kopyaVar ? 'İşlem öncesi güvenlik kopyası uygulamanın içinde duruyor' : 'İç güvenlik kopyası bulunamadı; Dosyalar\'a kaydettiğin kopyayı kullan'}</div></li>
+      </ul></div>
+    <div id="krSonuc"></div>`;
+  alt.innerHTML = `<div style="display:flex;flex-direction:column;gap:0">${butonlar.join('')}</div>`;
+  const kd = $('#krDosya');
+  if (kd) kd.onchange = async e => { const f = e.target.files[0]; if (f && confirm('Bu dosyadaki veriler, işlem öncesi hâl olarak geri yüklenecek. Devam edilsin mi?')) kurtarmaCalistir(() => f.arrayBuffer(), is && is.id); };
+  if (gdb) gdb.close();
+}
+function kurtarmaKapat(){ localStorage.removeItem(ISLEM_ANAHTARI); kilitle(false); location.reload(); }
+async function kurtarmaTamamla(id){
+  const sonuc = $('#krSonuc') || $('#grSonuc');
+  try {
+    const gdb = await guvAc(); const kayit = await guvIstek(gdb, 'islemler', 'readonly', s => s.get(id)); gdb.close();
+    const ls = lsOku(), onceki = {}; for (const k of Object.keys(kayit.lsHedef)) onceki[k] = ls[k] ?? null;
+    lsUygula(kayit.lsHedef, onceki);
+    islemYaz({ id, durum: 'ls_tamam', mod: kayit.mod, kopyaId: kayit.kopyaId, zaman: Date.now() });
+    const k = await sonucDogrula({ toplam: kayit.hedefToplam, sayi: kayit.hedefSayi, lsBeklenen: kayit.lsBeklenen, yabanciIz: kayit.yabanciIz });
+    if (!k.every(x => x.ok)) { sonuc.innerHTML = `<div class="kart-kutu" style="margin-top:12px"><b>Doğrulama başarısız</b>${kontrolListe(k)}</div>`; return; }
+    localStorage.removeItem(ISLEM_ANAHTARI); kilitle(false);
+    sonuc.innerHTML = `<div class="kart-kutu" style="margin-top:12px"><b>Geri yükleme tamamlandı ve doğrulandı</b>${kontrolListe(k)}</div>`;
+    alt.innerHTML = `<button class="ana" onclick="location.reload()">Uygulamayı yeniden başlat</button>`;
+  } catch (e) { sonuc.innerHTML = `<div class="kart-kutu" style="margin-top:12px"><b style="color:var(--kirmizi)">Tamamlanamadı</b><p class="alt-yazi" style="white-space:normal">${esc(e && e.message || e)}</p></div>`; }
+}
+function kurtarmaGeriAl(id){
+  kurtarmaCalistir(async () => { const gdb = await guvAc(); const kayit = await guvIstek(gdb, 'islemler', 'readonly', s => s.get(id)); const b = await iceKopyaOku(gdb, kayit.kopyaId); gdb.close(); return b; }, id);
+}
+async function kurtarmaCalistir(kaynak, id){
+  const sonuc = $('#krSonuc') || $('#grSonuc');
+  kilitle(true);
+  alt.innerHTML = `<button class="ikincil" disabled>Eski hâline döndürülüyor…</button>`;
+  sonuc.innerHTML = `<div class="kart-kutu" style="margin-top:12px"><b>Eski hâline döndürülüyor…</b><p class="alt-yazi">Uygulamadan çıkma.</p></div>`;
+  try {
+    const k = await kopyadanGeriDon(await kaynak(), id || ('g' + yeniId()));
+    kilitle(false);
+    sonuc.innerHTML = `<div class="kart-kutu" style="margin-top:12px"><b>Veriler eski hâline döndürüldü ve doğrulandı</b>${kontrolListe(k)}</div>`;
+    alt.innerHTML = `<button class="ana" onclick="location.reload()">Uygulamayı yeniden başlat</button>`;
+  } catch (e) {
+    sonuc.innerHTML = `<div class="kart-kutu" style="margin-top:12px"><b style="color:var(--kirmizi)">Eski hâline döndürülemedi</b><p class="alt-yazi" style="white-space:normal">${esc(e && e.message || e)}</p><p class="alt-yazi" style="white-space:normal">Hiçbir şeyi silme. Uygulamayı yeniden açıp tekrar dene ya da Dosyalar'daki güvenlik kopyasını kullan.</p></div>`;
+    alt.innerHTML = `<button class="kirmizi" onclick="location.reload()">Yeniden dene</button>`;
+    kilitle(true, false);   // kurtarma kaydı duruyor; yeniden açınca kurtarma ekranı gelir
+  }
+}
+
 // ================= Başlat =================
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
-dbAc().then(duzenle).then(() => sekmeAc('ana')).catch(err => {
+// Önce yarıda kalmış geri yükleme kontrol edilir; varsa onarım adımı ve normal ekranlar çalışmaz
+dbAc().then(kurtarmaKontrol).then(devam => { if (devam) return duzenle().then(() => sekmeAc('ana')); }).catch(err => {
   icerik.innerHTML = `<p class="bos">Uygulama açılamadı: ${esc(err && err.message || err)}</p>`;
 });
 </script>
